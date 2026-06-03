@@ -59,11 +59,17 @@ def build_generation_payload(form, files, progress=None, base_url=""):
         "ai_error": ai_data.get("_error", ""),
     }
     article_html = ai_data.get("article_html") or fallback_article(metadata, paper_text, head_url, tail_url)
+    article_markdown = ai_data.get("article_markdown") or ""
     print("[api_generate] article_html length:", len(article_html or ""), flush=True)
     print("[api_generate] article_html head:", repr((article_html or "")[:500]), flush=True)
 
     emit_progress(progress, 100, "正在写入生成结果")
     (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+    (run_dir / "render_assets.json").write_text(
+        json.dumps({"head_url": head_url, "tail_url": tail_url}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    (run_dir / "article.md").write_text(article_markdown, encoding="utf-8")
     (run_dir / "article.html").write_text(article_html, encoding="utf-8")
     (run_dir / "paper_text.txt").write_text(paper_text, encoding="utf-8")
     payload = {
@@ -71,6 +77,7 @@ def build_generation_payload(form, files, progress=None, base_url=""):
         "pdf_url": public_url(pdf_path),
         "run_public_url": public_url(run_dir),
         "metadata": metadata,
+        "article_markdown": article_markdown,
         "article_html": article_html,
     }
     emit_progress(progress, 100, "生成完成", f"public/runs/{run_id}")

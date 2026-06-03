@@ -133,6 +133,12 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url=""):
             blocks.append("[[IMAGE:论文开头部分截图]]")
             continue
 
+        markdown_image = re.fullmatch(r"!\[(.*?)\]\((.+?)\)", line)
+        if markdown_image:
+            flush_paragraph()
+            blocks.append(image_section(markdown_image.group(2).strip()))
+            continue
+
         image_match = re.fullmatch(r"\[\[IMAGE:(.+?)\]\]", line)
         if image_match:
             flush_paragraph()

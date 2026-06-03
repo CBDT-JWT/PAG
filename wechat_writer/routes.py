@@ -11,13 +11,29 @@ from queue import Empty, Queue
 from flask import Response, jsonify, render_template, request, send_from_directory, stream_with_context
 from PIL import Image, ImageOps
 
-from .agent import iterate_article
+from .agent import iterate_article_markdown
 from .config import PUBLIC_DIR, RUNS_DIR
 from .files import public_asset_url, public_base, safe_name
 from .generation import build_generation_payload
-from .wechat_html import image_section
+from .wechat_html import image_section, markdown_to_wechat_html
 
 MAX_SCREENSHOT_BYTES = 250 * 1024
+
+
+def read_json_file(path, default=None):
+    if not path.exists():
+        return default if default is not None else {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return default if default is not None else {}
+
+
+def image_markdown_from_placeholder(placeholder, image_url):
+    placeholder = (placeholder or "").strip()
+    match = re.fullmatch(r"\[\[IMAGE:(.+?)\]\]", placeholder)
+    alt = match.group(1).strip() if match else "截图"
+    return f"![{alt}]({image_url})"
 
 
 def register_routes(app):
@@ -110,7 +126,24 @@ def register_routes(app):
             if placeholder:
                 article_html = article_html.replace(placeholder, image_section(image_url), 1)
             article_path.write_text(article_html, encoding="utf-8")
-            return jsonify({"image_url": image_url, "article_html": article_html})
+
+            markdown_path = run_dir / "article.md"
+            article_markdown = data.get("article_markdown") or (
+                markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else ""
+            )
+            if placeholder and article_markdown:
+                article_markdown = article_markdown.replace(
+                    placeholder,
+                    image_markdown_from_placeholder(placeholder, image_url),
+                    1,
+                )
+                markdown_path.write_text(article_markdown, encoding="utf-8")
+
+            return jsonify({
+                "image_url": image_url,
+                "article_html": article_html,
+                "article_markdown": article_markdown,
+            })
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
@@ -122,18 +155,27 @@ def register_routes(app):
             if not run_dir.exists():
                 return jsonify({"error": "项目目录不存在"}), 404
 
-            article_path = run_dir / "article.html"
-            article_html = data.get("article_html") or (
-                article_path.read_text(encoding="utf-8") if article_path.exists() else ""
+            markdown_path = run_dir / "article.md"
+            article_markdown = data.get("article_markdown") or (
+                markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else ""
             )
-            updated_html = iterate_article(
-                article_html=article_html,
+            updated_markdown = iterate_article_markdown(
+                article_markdown=article_markdown,
                 instruction=data.get("prompt", ""),
-                selected_html=data.get("selected_html", ""),
                 selected_text=data.get("selected_text", ""),
             )
+            metadata = read_json_file(run_dir / "metadata.json", {})
+            assets = read_json_file(run_dir / "render_assets.json", {})
+            updated_html = markdown_to_wechat_html(
+                updated_markdown,
+                metadata=metadata,
+                head_url=assets.get("head_url", ""),
+                tail_url=assets.get("tail_url", ""),
+            )
+            markdown_path.write_text(updated_markdown, encoding="utf-8")
+            article_path = run_dir / "article.html"
             article_path.write_text(updated_html, encoding="utf-8")
-            return jsonify({"article_html": updated_html})
+            return jsonify({"article_html": updated_html, "article_markdown": updated_markdown})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 

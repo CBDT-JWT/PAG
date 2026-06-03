@@ -175,7 +175,7 @@ def handle_tool_calls(messages, assistant_message, max_calls=6, progress=None):
     return tool_results
 
 
-def chat(messages, tools=None, stream=False, on_delta=None):
+def chat(messages, tools=None, stream=False, on_delta=None, max_tokens=6000):
     api_url = (os.environ.get("OPENAI_BASE_URL") or os.environ.get("API_URL") or "").rstrip("/")
     api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY")
     if not api_url or not api_key:
@@ -184,7 +184,7 @@ def chat(messages, tools=None, stream=False, on_delta=None):
         "model": os.environ.get("OPENAI_MODEL") or os.environ.get("MODEL") or "deepseek-v4-pro",
         "messages": messages,
         "temperature": 0.55,
-        "max_tokens": 6000,
+        "max_tokens": max_tokens,
     }
     if tools:
         payload["tools"] = tools
@@ -203,6 +203,36 @@ def stream_progress_percent(total_chars):
     return min(STREAM_PROGRESS_MAX, estimated)
 
 
+def find_json_object(text):
+    start = text.find("{")
+    if start < 0:
+        return ""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return ""
+
+
 def parse_json_text(text):
     text = (text or "").strip()
     if not text:
@@ -214,16 +244,19 @@ def parse_json_text(text):
     if fenced:
         text = fenced.group(1).strip()
 
-    start, end = text.find("{"), text.rfind("}")
-    if start >= 0 and end > start:
-        text = text[start : end + 1]
-    else:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    json_text = find_json_object(text)
+    if not json_text:
         raise ValueError(f"模型返回内容中没有 JSON 对象。开头内容：{text[:300]}")
 
     try:
-        return json.loads(text)
+        return json.loads(json_text)
     except json.JSONDecodeError as exc:
-        raise ValueError(f"JSON 解析失败：{exc}. 内容开头：{text[:500]}")
+        raise ValueError(f"JSON 解析失败：{exc}. 内容开头：{json_text[:500]}")
 
 
 def get_first_present(d, keys, default=""):
@@ -395,23 +428,27 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         return data
 
 
-def iterate_article(article_html, instruction, selected_html="", selected_text=""):
+def iterate_article_markdown(article_markdown, instruction, selected_text=""):
     if not instruction.strip():
         raise ValueError("请输入修改要求")
+    if not article_markdown.strip():
+        raise ValueError("当前文章缺少 Markdown 源文，无法迭代。请重新生成一次文章后再修改。")
 
     scope = (
-        "用户选中了局部内容。只允许围绕这个选区改写；除非为了上下文衔接，不要改其它部分。"
-        if selected_html or selected_text
+        "用户选中了局部文本。只允许围绕这个选区对应的 Markdown 段落改写；除非为了上下文衔接，不要改其它部分。"
+        if selected_text
         else "用户没有选中局部内容。请按修改要求对全文进行必要调整。"
     )
     messages = [
         {
             "role": "system",
             "content": (
-                "你是微信公众号富文本编辑。你会收到当前 article_html 和修改要求。"
-                "必须保留微信可粘贴的 HTML 结构、图片 img、链接、占位符、内联样式。"
-                "不要输出 Markdown，不要解释，只输出合法 JSON。"
-                "JSON 字段必须是 {\"article_html\":\"...\"}。"
+                "你是微信公众号文章编辑。你会收到当前 article_markdown 和修改要求。"
+                "你只能修改 Markdown 正文，不要输出 HTML。"
+                "必须保留 [[HEAD_IMAGE]]、[[TAIL_IMAGE]]、[[PAPER_INFO]]、[[IMAGE:...]]、"
+                "以及 ![说明](图片地址) 这类图片标记。"
+                "不要输出 Markdown 代码块，不要解释，只输出合法 JSON。"
+                "JSON 字段必须是 {\"article_markdown\":\"...\"}。"
             ),
         },
         {
@@ -421,20 +458,27 @@ def iterate_article(article_html, instruction, selected_html="", selected_text="
 修改要求：
 {instruction}
 
-选区 HTML：
-{selected_html or "无"}
-
 选区文本：
 {selected_text or "无"}
 
-当前 article_html：
-{article_html}
+当前 article_markdown：
+{article_markdown}
 """,
         },
     ]
-    final = chat(messages, tools=None, stream=False)["choices"][0]["message"]
-    parsed = parse_json_text(final.get("content", "") or "")
-    updated = parsed.get("article_html") or parsed.get("html") or parsed.get("content") or ""
+    max_tokens = int(os.environ.get("ITERATE_MAX_TOKENS") or "16000")
+    final = chat(messages, tools=None, stream=False, max_tokens=max_tokens)["choices"][0]["message"]
+    content = final.get("content", "") or ""
+    try:
+        parsed = parse_json_text(content)
+    except ValueError as exc:
+        if content.lstrip().startswith('{"article_markdown"'):
+            raise ValueError(
+                "模型返回的 article_markdown 可能被截断，JSON 没有闭合。"
+                "请调大 ITERATE_MAX_TOKENS，或选中局部内容后再迭代。"
+            ) from exc
+        raise
+    updated = get_article_markdown(parsed)
     if not updated:
-        raise ValueError("模型没有返回 article_html")
+        raise ValueError("模型没有返回 article_markdown")
     return updated

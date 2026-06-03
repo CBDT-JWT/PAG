@@ -45,6 +45,7 @@ let pageCount = 0;
 let scale = 1.35;
 let runId = "";
 let articleHtml = "";
+let articleMarkdown = "";
 let activePlaceholder = "";
 let shotMode = false;
 let dragStart = null;
@@ -94,6 +95,7 @@ function applyGenerateResult(data) {
   console.log("ai_error =", data.metadata?.ai_error);
   runId = data.run_id;
   articleHtml = data.article_html || "";
+  articleMarkdown = data.article_markdown || "";
   setMeta(data.metadata || {});
   copySource.innerHTML = renderPlaceholders(articleHtml);
   copyBtn.disabled = false;
@@ -436,20 +438,19 @@ iterateBtn.addEventListener("click", async () => {
   iterateBtn.disabled = true;
   iterateStatus.textContent = selectedArticleHtml ? "正在按选区局部修改..." : "正在按要求迭代全文...";
   try {
-    const article = restoreArticleHtml();
     const response = await fetch(`/api/runs/${runId}/iterate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         prompt,
-        article_html: article,
-        selected_html: selectedArticleHtml,
+        article_markdown: articleMarkdown,
         selected_text: selectedArticleText
       })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "迭代修改失败");
     articleHtml = data.article_html || "";
+    articleMarkdown = data.article_markdown || "";
     copySource.innerHTML = renderPlaceholders(articleHtml);
     selectedArticleHtml = "";
     selectedArticleText = "";
@@ -530,11 +531,12 @@ saveShot.addEventListener("click", async () => {
     const response = await fetch(`/api/runs/${runId}/screenshots`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, placeholder: activePlaceholder })
+      body: JSON.stringify({ image, placeholder: activePlaceholder, article_markdown: articleMarkdown })
     });
     const data = await response.json();
     if (response.ok) {
       articleHtml = data.article_html;
+      articleMarkdown = data.article_markdown || articleMarkdown;
       copySource.innerHTML = renderPlaceholders(articleHtml);
       shotModal.hidden = true;
       shotMode = false;
