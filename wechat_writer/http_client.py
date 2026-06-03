@@ -1,8 +1,10 @@
 import json
 import os
 from http.client import IncompleteRead
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, ProxyHandler, build_opener, install_opener
 
+# 设置代理地址
+PROXY_URL = os.environ.get("HTTP_PROXY") or "http://127.0.0.1:7890"
 
 def http_get(url, timeout=40, headers=None):
     req_headers = {
@@ -11,6 +13,12 @@ def http_get(url, timeout=40, headers=None):
     }
     if headers:
         req_headers.update(headers)
+
+    # 通过代理访问
+    proxy_handler = ProxyHandler({"http": PROXY_URL, "https": PROXY_URL})
+    opener = build_opener(proxy_handler)
+    install_opener(opener)
+
     req = Request(url, headers=req_headers)
     with urlopen(req, timeout=timeout) as resp:
         try:
