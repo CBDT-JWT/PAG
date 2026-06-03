@@ -1,4 +1,5 @@
 import base64
+import io
 import json
 import re
 import threading
@@ -8,11 +9,14 @@ import uuid
 from queue import Empty, Queue
 
 from flask import Response, jsonify, render_template, request, send_from_directory, stream_with_context
+from PIL import Image, ImageOps
 
 from .config import PUBLIC_DIR, RUNS_DIR
 from .files import public_asset_url, public_base, safe_name
 from .generation import build_generation_payload
 from .wechat_html import image_section
+
+MAX_SCREENSHOT_BYTES = 250 * 1024
 
 
 def register_routes(app):
@@ -92,10 +96,10 @@ def register_routes(app):
             match = re.match(r"data:image/([a-zA-Z0-9.+-]+);base64,\s*(.+)", data.get("image", ""), flags=re.S)
             if not match:
                 return jsonify({"error": "截图数据格式不正确"}), 400
-            subtype = match.group(1).lower()
-            ext = "jpg" if subtype in {"jpeg", "jpg", "pjpeg"} else subtype.split("+", 1)[0]
-            target = run_dir / f"screenshot-{int(time.time())}-{uuid.uuid4().hex[:6]}.{ext}"
-            target.write_bytes(base64.b64decode(match.group(2)))
+            raw_image = base64.b64decode(re.sub(r"\s+", "", match.group(2)))
+            compressed = compress_screenshot(raw_image)
+            target = run_dir / f"screenshot-{int(time.time())}-{uuid.uuid4().hex[:6]}.jpg"
+            target.write_bytes(compressed)
             article_path = run_dir / "article.html"
             article_html = data.get("article_html") or (
                 article_path.read_text(encoding="utf-8") if article_path.exists() else ""
@@ -113,3 +117,39 @@ def register_routes(app):
 def sse_line(event_type, **payload):
     payload["type"] = event_type
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+
+
+def compress_screenshot(raw_image):
+    with Image.open(io.BytesIO(raw_image)) as image:
+        image = ImageOps.exif_transpose(image)
+        if image.mode in {"RGBA", "LA"} or (image.mode == "P" and "transparency" in image.info):
+            background = Image.new("RGB", image.size, "white")
+            background.paste(image.convert("RGBA"), mask=image.convert("RGBA").split()[-1])
+            image = background
+        else:
+            image = image.convert("RGB")
+
+        max_side = max(image.size)
+        while max_side >= 120:
+            candidate = resize_to_max_side(image, max_side)
+            for quality in (88, 80, 72, 64, 56, 48, 40, 34, 28, 22, 16):
+                output = io.BytesIO()
+                candidate.save(output, format="JPEG", quality=quality, optimize=True, progressive=True)
+                data = output.getvalue()
+                if len(data) <= MAX_SCREENSHOT_BYTES:
+                    return data
+            max_side = int(max_side * 0.75)
+
+        output = io.BytesIO()
+        resize_to_max_side(image, 120).save(output, format="JPEG", quality=12, optimize=True, progressive=True)
+        return output.getvalue()
+
+
+def resize_to_max_side(image, max_side):
+    width, height = image.size
+    current_max = max(width, height)
+    if current_max <= max_side:
+        return image
+    ratio = max_side / current_max
+    size = (max(1, int(width * ratio)), max(1, int(height * ratio)))
+    return image.resize(size, Image.Resampling.LANCZOS)
