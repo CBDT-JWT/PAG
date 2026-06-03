@@ -108,6 +108,14 @@ def web_search(query):
     return json.dumps(results, ensure_ascii=False)
 
 
+def safe_web_search(query, progress=None):
+    try:
+        return web_search(query)
+    except Exception as exc:
+        emit_progress(progress, 45, "联网预搜索失败，继续使用论文文本生成", repr(exc))
+        return "[]"
+
+
 def fetch_url(url):
     body, _, _ = http_get(url, timeout=20)
     text = body.decode("utf-8", errors="ignore")
@@ -263,7 +271,7 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
     }
 
     emit_progress(progress, 44, "正在检索论文相关项目和补充信息")
-    seed_search = web_search(f"{paper_url} project github paper") if paper_url else ""
+    seed_search = safe_web_search(f"{paper_url} project github paper", progress=progress) if paper_url else ""
 
     if not paper_text:
         paper_text = "本地未安装 pdftotext，需结合论文 URL 和联网检索理解论文。"
