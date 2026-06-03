@@ -45,6 +45,8 @@ let activePlaceholder = "";
 let shotMode = false;
 let dragStart = null;
 let selectedRect = null;
+const MAX_SCREENSHOT_DATA_URL_LENGTH = 6_000_000;
+const MAX_SCREENSHOT_SIDE = 2800;
 
 async function loadPdfJs() {
   if (pdfjsLib) return pdfjsLib;
@@ -319,7 +321,49 @@ async function cropSelection() {
     sourceWidth,
     sourceHeight
   );
-  return crop.toDataURL("image/png");
+  return canvasToCompressedImage(crop);
+}
+
+function canvasToCompressedImage(canvas) {
+  const normalized = downscaleCanvas(canvas, MAX_SCREENSHOT_SIDE);
+  let quality = .9;
+  let dataUrl = normalized.toDataURL("image/jpeg", quality);
+
+  while (dataUrl.length > MAX_SCREENSHOT_DATA_URL_LENGTH && quality > .55) {
+    quality -= .1;
+    dataUrl = normalized.toDataURL("image/jpeg", quality);
+  }
+
+  if (dataUrl.length <= MAX_SCREENSHOT_DATA_URL_LENGTH) {
+    return dataUrl;
+  }
+
+  const smallerSide = Math.max(1200, Math.floor(MAX_SCREENSHOT_SIDE * .72));
+  const smaller = downscaleCanvas(normalized, smallerSide);
+  quality = .8;
+  dataUrl = smaller.toDataURL("image/jpeg", quality);
+
+  while (dataUrl.length > MAX_SCREENSHOT_DATA_URL_LENGTH && quality > .45) {
+    quality -= .1;
+    dataUrl = smaller.toDataURL("image/jpeg", quality);
+  }
+
+  return dataUrl;
+}
+
+function downscaleCanvas(canvas, maxSide) {
+  const largestSide = Math.max(canvas.width, canvas.height);
+  if (largestSide <= maxSide) return canvas;
+
+  const ratio = maxSide / largestSide;
+  const target = document.createElement("canvas");
+  target.width = Math.max(1, Math.round(canvas.width * ratio));
+  target.height = Math.max(1, Math.round(canvas.height * ratio));
+  const context = target.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(canvas, 0, 0, target.width, target.height);
+  return target;
 }
 
 form.addEventListener("change", syncSourceMode);
@@ -414,7 +458,7 @@ saveShot.addEventListener("click", async () => {
   if (!selectedRect || !runId) return;
   saveShot.disabled = true;
   try {
-    copyStatus.textContent = "正在生成高清截图...";
+    copyStatus.textContent = "正在生成并压缩高清截图...";
     const image = await cropSelection();
     articleHtml = restoreArticleHtml();
     const response = await fetch(`/api/runs/${runId}/screenshots`, {

@@ -89,10 +89,11 @@ def register_routes(app):
             run_dir = RUNS_DIR / safe_name(run_id)
             if not run_dir.exists():
                 return jsonify({"error": "项目目录不存在"}), 404
-            match = re.match(r"data:image/(png|jpeg|webp);base64,(.+)", data.get("image", ""))
+            match = re.match(r"data:image/([a-zA-Z0-9.+-]+);base64,\s*(.+)", data.get("image", ""), flags=re.S)
             if not match:
                 return jsonify({"error": "截图数据格式不正确"}), 400
-            ext = "jpg" if match.group(1) == "jpeg" else match.group(1)
+            subtype = match.group(1).lower()
+            ext = "jpg" if subtype in {"jpeg", "jpg", "pjpeg"} else subtype.split("+", 1)[0]
             target = run_dir / f"screenshot-{int(time.time())}-{uuid.uuid4().hex[:6]}.{ext}"
             target.write_bytes(base64.b64decode(match.group(2)))
             article_html = data.get("article_html", "")
