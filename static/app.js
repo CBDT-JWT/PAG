@@ -45,7 +45,7 @@ let activePlaceholder = "";
 let shotMode = false;
 let dragStart = null;
 let selectedRect = null;
-const MAX_SCREENSHOT_DATA_URL_LENGTH = 950_000;
+const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
 async function loadPdfJs() {
@@ -328,9 +328,9 @@ function canvasToCompressedImage(canvas) {
   let maxSide = MAX_SCREENSHOT_SIDE;
   let bestDataUrl = "";
 
-  while (maxSide >= 320) {
+  while (maxSide >= 240) {
     const candidate = downscaleCanvas(canvas, maxSide);
-    for (const quality of [.9, .8, .7, .6, .5, .42, .35, .28, .22]) {
+    for (const quality of [.85, .75, .65, .55, .45, .35, .28, .22, .16]) {
       const dataUrl = candidate.toDataURL("image/jpeg", quality);
       if (dataUrl.length <= MAX_SCREENSHOT_DATA_URL_LENGTH) {
         return dataUrl;
@@ -450,7 +450,7 @@ saveShot.addEventListener("click", async () => {
   if (!selectedRect || !runId) return;
   saveShot.disabled = true;
   try {
-    copyStatus.textContent = "正在生成并压缩截图到 1MB 以内...";
+    copyStatus.textContent = "正在生成并压缩截图到 250KB 以内...";
     const image = await cropSelection();
     const response = await fetch(`/api/runs/${runId}/screenshots`, {
       method: "POST",
