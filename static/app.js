@@ -283,7 +283,7 @@ function drawSelection(a, b) {
   selectionBox.style.width = `${width}px`;
   selectionBox.style.height = `${height}px`;
   selectedRect = { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width, height };
-  saveShot.disabled = width < 12 || height < 12;
+  saveShot.disabled = width <= 0 || height <= 0;
 }
 
 async function cropSelection() {
