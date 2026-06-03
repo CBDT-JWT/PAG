@@ -45,7 +45,7 @@ let activePlaceholder = "";
 let shotMode = false;
 let dragStart = null;
 let selectedRect = null;
-const MAX_SCREENSHOT_DATA_URL_LENGTH = 6_000_000;
+const MAX_SCREENSHOT_DATA_URL_LENGTH = 700_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
 async function loadPdfJs() {
@@ -325,30 +325,21 @@ async function cropSelection() {
 }
 
 function canvasToCompressedImage(canvas) {
-  const normalized = downscaleCanvas(canvas, MAX_SCREENSHOT_SIDE);
-  let quality = .9;
-  let dataUrl = normalized.toDataURL("image/jpeg", quality);
+  let maxSide = MAX_SCREENSHOT_SIDE;
+  let candidate = downscaleCanvas(canvas, maxSide);
 
-  while (dataUrl.length > MAX_SCREENSHOT_DATA_URL_LENGTH && quality > .55) {
-    quality -= .1;
-    dataUrl = normalized.toDataURL("image/jpeg", quality);
+  while (maxSide >= 700) {
+    for (const quality of [.9, .8, .7, .6, .5, .42, .35]) {
+      const dataUrl = candidate.toDataURL("image/jpeg", quality);
+      if (dataUrl.length <= MAX_SCREENSHOT_DATA_URL_LENGTH) {
+        return dataUrl;
+      }
+    }
+    maxSide = Math.floor(maxSide * .72);
+    candidate = downscaleCanvas(canvas, maxSide);
   }
 
-  if (dataUrl.length <= MAX_SCREENSHOT_DATA_URL_LENGTH) {
-    return dataUrl;
-  }
-
-  const smallerSide = Math.max(1200, Math.floor(MAX_SCREENSHOT_SIDE * .72));
-  const smaller = downscaleCanvas(normalized, smallerSide);
-  quality = .8;
-  dataUrl = smaller.toDataURL("image/jpeg", quality);
-
-  while (dataUrl.length > MAX_SCREENSHOT_DATA_URL_LENGTH && quality > .45) {
-    quality -= .1;
-    dataUrl = smaller.toDataURL("image/jpeg", quality);
-  }
-
-  return dataUrl;
+  return candidate.toDataURL("image/jpeg", .3);
 }
 
 function downscaleCanvas(canvas, maxSide) {
@@ -460,11 +451,10 @@ saveShot.addEventListener("click", async () => {
   try {
     copyStatus.textContent = "正在生成并压缩高清截图...";
     const image = await cropSelection();
-    articleHtml = restoreArticleHtml();
     const response = await fetch(`/api/runs/${runId}/screenshots`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, placeholder: activePlaceholder, article_html: articleHtml })
+      body: JSON.stringify({ image, placeholder: activePlaceholder })
     });
     const data = await response.json();
     if (response.ok) {

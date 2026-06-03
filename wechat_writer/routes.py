@@ -96,12 +96,15 @@ def register_routes(app):
             ext = "jpg" if subtype in {"jpeg", "jpg", "pjpeg"} else subtype.split("+", 1)[0]
             target = run_dir / f"screenshot-{int(time.time())}-{uuid.uuid4().hex[:6]}.{ext}"
             target.write_bytes(base64.b64decode(match.group(2)))
-            article_html = data.get("article_html", "")
+            article_path = run_dir / "article.html"
+            article_html = data.get("article_html") or (
+                article_path.read_text(encoding="utf-8") if article_path.exists() else ""
+            )
             placeholder = data.get("placeholder", "")
             image_url = public_asset_url(target, public_base())
             if placeholder:
                 article_html = article_html.replace(placeholder, image_section(image_url), 1)
-            (run_dir / "article.html").write_text(article_html, encoding="utf-8")
+            article_path.write_text(article_html, encoding="utf-8")
             return jsonify({"image_url": image_url, "article_html": article_html})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
