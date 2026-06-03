@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>模板测试</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs" type="module"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>公众号论文写作工具</h1>
+        <p>上传论文或输入 URL，生成可直接粘贴到微信公众平台的富文本。</p>
+      </div>
+      <div class="actions">
+        <button id="generateBtn" class="primary" type="button">开始生成</button>
+        <button id="copyBtn" type="button" disabled>复制</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="left-pane">
+        <form id="paperForm" class="input-panel">
+          <div class="source-tabs" role="tablist">
+            <label><input type="radio" name="source_type" value="url" checked> URL</label>
+            <label><input type="radio" name="source_type" value="pdf"> PDF</label>
+          </div>
+          <input id="paperUrl" name="paper_url" type="url" placeholder="https://arxiv.org/abs/..." autocomplete="off">
+          <input id="paperPdf" name="paper_pdf" type="file" accept="application/pdf">
+          <div class="file-row">
+            <label>头部图片 <input name="head_image" type="file" accept="image/*"></label>
+            <label>尾部图片 <input name="tail_image" type="file" accept="image/*"></label>
+          </div>
+          <textarea name="focus_authors" rows="2" placeholder="重点关注作者，可用逗号分隔"></textarea>
+        </form>
+
+        <div class="pdf-panel">
+          <div class="pdf-toolbar">
+            <button id="prevPage" type="button">上一页</button>
+            <span><b id="pageNum">0</b> / <b id="pageCount">0</b></span>
+            <button id="nextPage" type="button">下一页</button>
+            <button id="zoomOut" type="button">缩小</button>
+            <button id="zoomIn" type="button">放大</button>
+          </div>
+          <div id="pdfStage" class="pdf-stage">
+            <canvas id="pdfCanvas"></canvas>
+            <div id="selectionBox" class="selection-box"></div>
+            <div class="empty-state">生成后论文会显示在这里</div>
+          </div>
+        </div>
+
+        <div class="meta-panel">
+          <div><span>论文标题</span><strong id="metaTitle">-</strong></div>
+          <div><span>项目地址</span><a id="metaProject" href="#" target="_blank">-</a></div>
+          <div><span>论文地址</span><a id="metaPaper" href="#" target="_blank">-</a></div>
+          <p id="statusLine">等待输入。</p>
+        </div>
+      </section>
+
+      <section class="right-pane">
+        <div class="preview-toolbar">
+          <span>富文本预览</span>
+          <span id="copyStatus">生成完成后可复制</span>
+        </div>
+        <article id="copySource" class="wechat-preview" contenteditable="true"></article>
+      </section>
+    </main>
+  </div>
+
+  <div id="shotModal" class="modal" hidden>
+    <div class="modal-card">
+      <h2>截取论文图片</h2>
+      <p>在左侧 PDF 当前页拖拽选择区域，松开后点击保存。</p>
+      <div class="modal-actions">
+        <button id="cancelShot" type="button">取消</button>
+        <button id="saveShot" class="primary" type="button" disabled>保存截图</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

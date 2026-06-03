@@ -1,0 +1,10 @@
+flask>=3.0.0
+openai>=1.0.0
+python-dotenv>=1.0.0
+
+# Optional but recommended for better PDF reading:
+#   brew install poppler
+#
+# The app uses `pdftotext` when available. Without it, the tool still downloads
+# and displays the PDF, then asks the model to rely on the paper URL plus web
+# search context.
