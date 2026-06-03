@@ -94,7 +94,7 @@ button.primary:hover:not(:disabled) {
 
 .info-pane {
   display: grid;
-  grid-template-rows: auto minmax(180px, 1fr);
+  grid-template-rows: auto minmax(160px, 1fr) auto;
   min-height: 0;
   overflow: auto;
 }
@@ -302,6 +302,38 @@ input[type="url"], textarea {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
+}
+
+.iterate-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+
+.iterate-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.iterate-head strong {
+  color: var(--text);
+}
+
+.iterate-head span,
+.iterate-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#iteratePrompt {
+  min-height: 110px;
+  resize: vertical;
 }
 
 .right-pane {

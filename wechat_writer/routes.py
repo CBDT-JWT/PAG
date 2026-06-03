@@ -11,6 +11,7 @@ from queue import Empty, Queue
 from flask import Response, jsonify, render_template, request, send_from_directory, stream_with_context
 from PIL import Image, ImageOps
 
+from .agent import iterate_article
 from .config import PUBLIC_DIR, RUNS_DIR
 from .files import public_asset_url, public_base, safe_name
 from .generation import build_generation_payload
@@ -110,6 +111,29 @@ def register_routes(app):
                 article_html = article_html.replace(placeholder, image_section(image_url), 1)
             article_path.write_text(article_html, encoding="utf-8")
             return jsonify({"image_url": image_url, "article_html": article_html})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+    @app.post("/api/runs/<run_id>/iterate")
+    def api_iterate(run_id):
+        try:
+            data = request.get_json(force=True)
+            run_dir = RUNS_DIR / safe_name(run_id)
+            if not run_dir.exists():
+                return jsonify({"error": "项目目录不存在"}), 404
+
+            article_path = run_dir / "article.html"
+            article_html = data.get("article_html") or (
+                article_path.read_text(encoding="utf-8") if article_path.exists() else ""
+            )
+            updated_html = iterate_article(
+                article_html=article_html,
+                instruction=data.get("prompt", ""),
+                selected_html=data.get("selected_html", ""),
+                selected_text=data.get("selected_text", ""),
+            )
+            article_path.write_text(updated_html, encoding="utf-8")
+            return jsonify({"article_html": updated_html})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 

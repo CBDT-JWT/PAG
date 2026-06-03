@@ -393,3 +393,48 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         emit_progress(progress, 99, "AI 生成失败，正在生成降级稿", repr(exc))
         data["article_html"] = fallback_article(data, paper_text, head_url, tail_url)
         return data
+
+
+def iterate_article(article_html, instruction, selected_html="", selected_text=""):
+    if not instruction.strip():
+        raise ValueError("请输入修改要求")
+
+    scope = (
+        "用户选中了局部内容。只允许围绕这个选区改写；除非为了上下文衔接，不要改其它部分。"
+        if selected_html or selected_text
+        else "用户没有选中局部内容。请按修改要求对全文进行必要调整。"
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是微信公众号富文本编辑。你会收到当前 article_html 和修改要求。"
+                "必须保留微信可粘贴的 HTML 结构、图片 img、链接、占位符、内联样式。"
+                "不要输出 Markdown，不要解释，只输出合法 JSON。"
+                "JSON 字段必须是 {\"article_html\":\"...\"}。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"""修改范围：{scope}
+
+修改要求：
+{instruction}
+
+选区 HTML：
+{selected_html or "无"}
+
+选区文本：
+{selected_text or "无"}
+
+当前 article_html：
+{article_html}
+""",
+        },
+    ]
+    final = chat(messages, tools=None, stream=False)["choices"][0]["message"]
+    parsed = parse_json_text(final.get("content", "") or "")
+    updated = parsed.get("article_html") or parsed.get("html") or parsed.get("content") or ""
+    if not updated:
+        raise ValueError("模型没有返回 article_html")
+    return updated

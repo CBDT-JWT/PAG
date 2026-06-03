@@ -12,6 +12,10 @@ const progressPercent = document.getElementById("progressPercent");
 const progressBar = document.getElementById("progressBar");
 const progressLog = document.getElementById("progressLog");
 const copyStatus = document.getElementById("copyStatus");
+const iteratePrompt = document.getElementById("iteratePrompt");
+const iterateBtn = document.getElementById("iterateBtn");
+const iterateStatus = document.getElementById("iterateStatus");
+const selectionStatus = document.getElementById("selectionStatus");
 const paperUrl = document.getElementById("paperUrl");
 const paperPdf = document.getElementById("paperPdf");
 const pdfStage = document.getElementById("pdfStage");
@@ -45,6 +49,8 @@ let activePlaceholder = "";
 let shotMode = false;
 let dragStart = null;
 let selectedRect = null;
+let selectedArticleHtml = "";
+let selectedArticleText = "";
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
@@ -91,6 +97,7 @@ function applyGenerateResult(data) {
   setMeta(data.metadata || {});
   copySource.innerHTML = renderPlaceholders(articleHtml);
   copyBtn.disabled = false;
+  iterateBtn.disabled = false;
   copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
 }
 
@@ -263,6 +270,34 @@ function getCopyHtml() {
   return clone.innerHTML;
 }
 
+function getSelectionHtml(range) {
+  const fragment = range.cloneContents();
+  const container = document.createElement("div");
+  container.appendChild(fragment);
+  return container.innerHTML;
+}
+
+function updateArticleSelection() {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+    selectedArticleHtml = "";
+    selectedArticleText = "";
+    selectionStatus.textContent = "未选择局部";
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  if (!copySource.contains(range.commonAncestorContainer)) {
+    selectedArticleHtml = "";
+    selectedArticleText = "";
+    selectionStatus.textContent = "未选择局部";
+    return;
+  }
+  selectedArticleHtml = getSelectionHtml(range);
+  selectedArticleText = selection.toString();
+  const size = selectedArticleText.trim().length;
+  selectionStatus.textContent = size ? `已选择 ${size} 字` : "未选择局部";
+}
+
 function canvasPointFromEvent(event) {
   const canvasRect = pdfCanvas.getBoundingClientRect();
   return {
@@ -364,7 +399,11 @@ syncSourceMode();
 generateBtn.addEventListener("click", async () => {
   generateBtn.disabled = true;
   copyBtn.disabled = true;
+  iterateBtn.disabled = true;
   copySource.innerHTML = "";
+  selectedArticleHtml = "";
+  selectedArticleText = "";
+  selectionStatus.textContent = "未选择局部";
   resetProgress();
   appendProgress("正在提交生成请求");
   const body = new FormData(form);
@@ -387,6 +426,42 @@ generateBtn.addEventListener("click", async () => {
 });
 
 copyBtn.addEventListener("click", copyRichText);
+copySource.addEventListener("mouseup", updateArticleSelection);
+copySource.addEventListener("keyup", updateArticleSelection);
+
+iterateBtn.addEventListener("click", async () => {
+  const prompt = iteratePrompt.value.trim();
+  if (!prompt || !runId) return;
+
+  iterateBtn.disabled = true;
+  iterateStatus.textContent = selectedArticleHtml ? "正在按选区局部修改..." : "正在按要求迭代全文...";
+  try {
+    const article = restoreArticleHtml();
+    const response = await fetch(`/api/runs/${runId}/iterate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        article_html: article,
+        selected_html: selectedArticleHtml,
+        selected_text: selectedArticleText
+      })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "迭代修改失败");
+    articleHtml = data.article_html || "";
+    copySource.innerHTML = renderPlaceholders(articleHtml);
+    selectedArticleHtml = "";
+    selectedArticleText = "";
+    selectionStatus.textContent = "未选择局部";
+    iterateStatus.textContent = "已应用修改";
+    copyStatus.textContent = "迭代修改已更新，可继续编辑或复制";
+  } catch (error) {
+    iterateStatus.textContent = error.message || "迭代修改失败";
+  } finally {
+    iterateBtn.disabled = !runId;
+  }
+});
 
 document.getElementById("prevPage").addEventListener("click", async () => {
   if (pdfDoc && currentPage > 1) {

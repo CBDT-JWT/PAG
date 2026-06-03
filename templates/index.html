@@ -54,6 +54,16 @@
           <div><span>论文地址</span><a id="metaPaper" href="#" target="_blank">-</a></div>
           <p id="statusLine">等待输入。</p>
         </div>
+
+        <section class="iterate-panel">
+          <div class="iterate-head">
+            <strong>迭代修改</strong>
+            <span id="selectionStatus">未选择局部</span>
+          </div>
+          <textarea id="iteratePrompt" rows="5" placeholder="输入修改要求；如需局部修改，先在右侧富文本中选中一段内容。"></textarea>
+          <button id="iterateBtn" class="primary" type="button" disabled>应用修改</button>
+          <p id="iterateStatus">生成完成后可迭代修改。</p>
+        </section>
       </section>
 
       <section class="pdf-pane">
