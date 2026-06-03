@@ -6,7 +6,7 @@ BODY_FONT_SIZE = "14pt"
 BODY_LINE_HEIGHT = "12pt"
 PARAGRAPH_MARGIN_BOTTOM = "12pt"
 SECTION_TITLE_FONT_SIZE = "16pt"
-BODY_HORIZONTAL_PADDING = "20pt"
+BODY_HORIZONTAL_PADDING = "10pt"
 IMAGE_WIDTH = "90%"
 
 
@@ -44,7 +44,7 @@ def render_inline_markdown(text):
 
 def paragraph_html(text):
     return (
-        f'<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;">'
+        f'<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};">'
         f"{render_inline_markdown(text)}"
         "</p>"
     )
@@ -52,7 +52,7 @@ def paragraph_html(text):
 
 def heading_html(text):
     return (
-        f'<p style="text-align:center;margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;">'
+        f'<p style="text-align:center;margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{SECTION_TITLE_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};">'
         '<strong style="color:rgb(62,62,62);box-sizing: border-box;">'
         f'<span><span style="font-size:{SECTION_TITLE_FONT_SIZE};">{escape_html_text(text)}</span></span>'
         "</strong>"
@@ -69,7 +69,7 @@ def paper_info_section(metadata):
         align = "text-align: left;" if text_align else ""
         return (
             '<li style="box-sizing: border-box;">'
-            f'<p style="{align}margin:0;padding:0;box-sizing:border-box;">'
+            f'<p style="{align}margin:0;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};">'
             '<strong style="box-sizing: border-box;">'
             f"<span>{escape_html_text(label)}</span>"
             "</strong>"
@@ -87,7 +87,7 @@ def paper_info_section(metadata):
 
     return (
         '<section style="margin:20px 0 0;box-sizing:border-box;">'
-        f'<section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0 {BODY_HORIZONTAL_PADDING};color:rgb(157,88,77);box-sizing:border-box;">'
+        f'<section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0;color:rgb(157,88,77);box-sizing:border-box;">'
         '<ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
         f"{items}"
         "</ul>"
@@ -141,7 +141,7 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url=""):
             flush_paragraph()
             item_text = line[2:].strip()
             blocks.append(
-                f'<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;">'
+                f'<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};">'
                 '<span>• </span>'
                 f"{render_inline_markdown(item_text)}"
                 "</p>"
@@ -160,13 +160,13 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url=""):
     flush_paragraph()
     body = (
         '<section style="margin:20px 0 0;box-sizing:border-box;">'
-        f'<section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0 {BODY_HORIZONTAL_PADDING};box-sizing:border-box;">'
+        f'<section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0;box-sizing:border-box;">'
         + "\n".join(blocks)
         + "</section>"
         "</section>"
     )
     return ensure_wrapper(
-        f'<section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:justify;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};color:rgb(62,62,62);">'
+        f'<section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:justify;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding-left:{BODY_HORIZONTAL_PADDING};padding-right:{BODY_HORIZONTAL_PADDING};color:rgb(62,62,62);">'
         + body
         + "</section>"
     )
@@ -183,18 +183,18 @@ def fallback_article(metadata, paper_text, head_url, tail_url):
     first = html.escape((paper_text.strip().splitlines() or [title])[0][:220])
     tail = image_section(tail_url) if tail_url else ""
     return ensure_wrapper(f"""
-<section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:justify;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};color:rgb(62,62,62);">
+<section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:justify;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding-left:{BODY_HORIZONTAL_PADDING};padding-right:{BODY_HORIZONTAL_PADDING};color:rgb(62,62,62);">
 {image_section(head_url)}
-<section style="margin:20px 0 0;box-sizing:border-box;"><section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0 {BODY_HORIZONTAL_PADDING};box-sizing:border-box;">
-<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;"><strong style="color:rgb(67, 117, 185);box-sizing:border-box;">{title}</strong></p>
-<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;">{first}</p>
-<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;"><span style="color:rgb(67, 117, 185);box-sizing:border-box;"><strong>建议补一张论文方法图或实验结果图。</strong></span></p>
+<section style="margin:20px 0 0;box-sizing:border-box;"><section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0;box-sizing:border-box;">
+<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};"><strong style="color:rgb(67, 117, 185);box-sizing:border-box;">{title}</strong></p>
+<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};">{first}</p>
+<p style="margin:0 0 {PARAGRAPH_MARGIN_BOTTOM};white-space:normal;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};"><span style="color:rgb(67, 117, 185);box-sizing:border-box;"><strong>建议补一张论文方法图或实验结果图。</strong></span></p>
 </section></section>
 [[IMAGE:论文核心方法或主要实验结果截图]]
-<section style="margin:20px 0 0;box-sizing:border-box;"><section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0 {BODY_HORIZONTAL_PADDING};color:rgb(157,88,77);box-sizing:border-box;"><ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">
-<li><p style="margin:0;padding:0;box-sizing:border-box;"><strong>论文标题</strong><br>{title}</p></li>
-<li><p style="margin:0;padding:0;box-sizing:border-box;"><strong>项目地址</strong><br>{html.escape(metadata.get("project_url") or "未找到")}</p></li>
-<li><p style="margin:0;padding:0;box-sizing:border-box;"><strong>论文地址</strong><br>{html.escape(metadata.get("paper_url") or "未找到")}</p></li>
+<section style="margin:20px 0 0;box-sizing:border-box;"><section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0;color:rgb(157,88,77);box-sizing:border-box;"><ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">
+<li><p style="margin:0;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};"><strong>论文标题</strong><br>{title}</p></li>
+<li><p style="margin:0;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};"><strong>项目地址</strong><br>{html.escape(metadata.get("project_url") or "未找到")}</p></li>
+<li><p style="margin:0;padding:0;box-sizing:border-box;font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};"><strong>论文地址</strong><br>{html.escape(metadata.get("paper_url") or "未找到")}</p></li>
 </ul></section></section>
 [[IMAGE:论文开头部分截图]]
 {tail}
