@@ -30,15 +30,15 @@ JSON 字段必须为：
 }
 
 article_markdown 写作要求：
-1. 使用自然流畅的中文公众号文章风格，不要堆砌分点。
+1. 使用自然流畅的中文公众号文章风格，不要堆砌分点。但是，每个段落要稍微短一些。
 2. 文章开头必须放 [[HEAD_IMAGE]]。
 3. 论文信息部分只放一个占位符 [[PAPER_INFO]]，不要自己写论文标题、项目地址、论文地址列表。
-4. 正文图片使用 [[IMAGE:具体图片描述]] 占位，例如 [[IMAGE:nuReasoning 数据构建流程图]]。
+4. 正文图片使用 [[IMAGE:具体图片描述]] 占位，例如 [[IMAGE:nuReasoning 数据构建流程图]]。使用论文中存在的图。
 5. 如果 tail_url 非空，文章末尾放 [[TAIL_IMAGE]]。
 6. 二级标题使用 Markdown 二级标题，例如：## 现有数据集的不足
 7. 重点强调使用 **加粗文本**。
 8. 不要输出 HTML。
-9. 字数3k左右，**每个段落不能太长**，**严禁使用三级及以上标题！！！**
+9. 总字数3k左右，**每个段落不能太长**，**严禁使用三级及以上标题！！！**
 10. 格式上，应当是一段leadingin-论文信息-前序研究不足或现状-核心设计-具体实验-亮点重现-总结展望，leadingin部分不需要二级标题，其他需要。leadingin要有一点故事性。
 """
 
@@ -49,7 +49,7 @@ TOOLS = [
 
 STREAM_PROGRESS_START = 60
 STREAM_PROGRESS_SPAN = 40
-STREAM_PROGRESS_EXPECTED_CHARS = 5000
+STREAM_PROGRESS_EXPECTED_CHARS = 6500
 STREAM_PROGRESS_MAX = 99
 
 
