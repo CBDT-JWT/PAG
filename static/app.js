@@ -1,5 +1,4 @@
 import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs";
-alert("app.js loaded");
 console.log("app.js loaded");
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.mjs";
@@ -8,6 +7,10 @@ const generateBtn = document.getElementById("generateBtn");
 const copyBtn = document.getElementById("copyBtn");
 const copySource = document.getElementById("copySource");
 const statusLine = document.getElementById("statusLine");
+const progressLabel = document.getElementById("progressLabel");
+const progressPercent = document.getElementById("progressPercent");
+const progressBar = document.getElementById("progressBar");
+const progressLog = document.getElementById("progressLog");
 const copyStatus = document.getElementById("copyStatus");
 const paperUrl = document.getElementById("paperUrl");
 const paperPdf = document.getElementById("paperPdf");
@@ -52,6 +55,103 @@ async function loadPdfJs() {
 
 function setStatus(text) {
   statusLine.textContent = text;
+}
+
+function setProgress(percent, message) {
+  const value = Math.max(0, Math.min(100, Number(percent) || 0));
+  progressBar.style.width = `${value}%`;
+  progressPercent.textContent = `${value}%`;
+  progressLabel.textContent = message || "处理中";
+  setStatus(message || "处理中");
+}
+
+function resetProgress() {
+  setProgress(0, "开始生成");
+  progressLog.innerHTML = "";
+}
+
+function appendProgress(message, detail = "") {
+  const item = document.createElement("p");
+  const time = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  item.textContent = detail ? `${time} ${message}：${detail}` : `${time} ${message}`;
+  progressLog.appendChild(item);
+  progressLog.scrollTop = progressLog.scrollHeight;
+}
+
+function applyGenerateResult(data) {
+  console.log("data =", data);
+  console.log("article_html length =", data.article_html?.length);
+  console.log("article_html head =", data.article_html?.slice(0, 500));
+  console.log("metadata =", data.metadata);
+  console.log("ai_error =", data.metadata?.ai_error);
+  runId = data.run_id;
+  articleHtml = data.article_html || "";
+  setMeta(data.metadata || {});
+  copySource.innerHTML = renderPlaceholders(articleHtml);
+  copyBtn.disabled = false;
+  copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
+}
+
+async function readProgressStream(response) {
+  if (!response.body) {
+    throw new Error("当前浏览器不支持流式读取");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalData = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+    const events = buffer.split(/\n\n+/);
+    buffer = events.pop() || "";
+
+    for (const rawEvent of events) {
+      const dataLines = rawEvent
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trim());
+      if (!dataLines.length) continue;
+      const payload = dataLines.join("\n");
+      if (payload === "[DONE]") continue;
+      handleStreamEvent(JSON.parse(payload));
+    }
+
+    if (done) break;
+  }
+
+  const trailing = buffer.trim();
+  if (trailing) {
+    const payload = trailing
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("\n");
+    if (payload && payload !== "[DONE]") {
+      handleStreamEvent(JSON.parse(payload));
+    }
+  }
+
+  if (!finalData) {
+    throw new Error("生成结束但没有收到结果");
+  }
+  return finalData;
+
+  function handleStreamEvent(event) {
+    if (event.type === "progress") {
+      setProgress(event.percent, event.message);
+      appendProgress(event.message, event.detail || "");
+    } else if (event.type === "heartbeat") {
+      appendProgress(event.message || "仍在处理中");
+    } else if (event.type === "done") {
+      finalData = event.data;
+    } else if (event.type === "error") {
+      throw new Error(event.message || "生成失败");
+    }
+  }
 }
 
 function syncSourceMode() {
@@ -108,7 +208,7 @@ async function renderPage() {
 }
 
 async function copyRichText() {
-  const html = copySource.innerHTML;
+  const html = getCopyHtml();
   const text = copySource.innerText;
   try {
     if (navigator.clipboard && window.ClipboardItem) {
@@ -137,6 +237,30 @@ async function copyRichText() {
   }
 }
 
+function absoluteUrl(value) {
+  if (!value || value.startsWith("data:")) return value;
+  try {
+    return new URL(value, window.location.origin).href;
+  } catch (error) {
+    return value;
+  }
+}
+
+function getCopyHtml() {
+  const clone = copySource.cloneNode(true);
+  clone.querySelectorAll("img").forEach((img) => {
+    const src = absoluteUrl(img.getAttribute("src") || img.getAttribute("data-src") || "");
+    if (src) {
+      img.setAttribute("src", src);
+      img.setAttribute("data-src", src);
+    }
+  });
+  clone.querySelectorAll("a[href]").forEach((link) => {
+    link.setAttribute("href", absoluteUrl(link.getAttribute("href")));
+  });
+  return clone.innerHTML;
+}
+
 function canvasPointFromEvent(event) {
   const canvasRect = pdfCanvas.getBoundingClientRect();
   return {
@@ -162,22 +286,38 @@ function drawSelection(a, b) {
   saveShot.disabled = width < 12 || height < 12;
 }
 
-function cropSelection() {
-  const ratioX = pdfCanvas.width / pdfCanvas.getBoundingClientRect().width;
-  const ratioY = pdfCanvas.height / pdfCanvas.getBoundingClientRect().height;
+async function cropSelection() {
+  const page = await pdfDoc.getPage(currentPage);
+  const displayRect = pdfCanvas.getBoundingClientRect();
+  const exportScale = Math.max(3, scale * 3);
+  const exportViewport = page.getViewport({ scale: exportScale });
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = Math.ceil(exportViewport.width);
+  sourceCanvas.height = Math.ceil(exportViewport.height);
+  await page.render({
+    canvasContext: sourceCanvas.getContext("2d"),
+    viewport: exportViewport
+  }).promise;
+
+  const ratioX = sourceCanvas.width / displayRect.width;
+  const ratioY = sourceCanvas.height / displayRect.height;
+  const sourceX = Math.round(selectedRect.x * ratioX);
+  const sourceY = Math.round(selectedRect.y * ratioY);
+  const sourceWidth = Math.round(selectedRect.width * ratioX);
+  const sourceHeight = Math.round(selectedRect.height * ratioY);
   const crop = document.createElement("canvas");
-  crop.width = Math.round(selectedRect.width * ratioX);
-  crop.height = Math.round(selectedRect.height * ratioY);
+  crop.width = sourceWidth;
+  crop.height = sourceHeight;
   crop.getContext("2d").drawImage(
-    pdfCanvas,
-    Math.round(selectedRect.x * ratioX),
-    Math.round(selectedRect.y * ratioY),
-    crop.width,
-    crop.height,
+    sourceCanvas,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
     0,
     0,
-    crop.width,
-    crop.height
+    sourceWidth,
+    sourceHeight
   );
   return crop.toDataURL("image/png");
 }
@@ -189,26 +329,21 @@ generateBtn.addEventListener("click", async () => {
   generateBtn.disabled = true;
   copyBtn.disabled = true;
   copySource.innerHTML = "";
-  setStatus("正在创建项目目录、下载/保存论文并调用大模型...");
+  resetProgress();
+  appendProgress("正在提交生成请求");
   const body = new FormData(form);
   try {
-    const response = await fetch("/api/generate", { method: "POST", body });
-    const data = await response.json();
-    console.log("data =", data);
-    console.log("article_html length =", data.article_html?.length);
-    console.log("article_html head =", data.article_html?.slice(0, 500));
-    console.log("metadata =", data.metadata);
-    console.log("ai_error =", data.metadata?.ai_error);
-    if (!response.ok) throw new Error(data.error || "生成失败");
-    runId = data.run_id;
-    articleHtml = data.article_html || "";
-    setMeta(data.metadata || {});
-    copySource.innerHTML = renderPlaceholders(articleHtml);
-    copyBtn.disabled = false;
+    const response = await fetch("/api/generate/stream", { method: "POST", body });
+    if (!response.ok) throw new Error("生成请求失败");
+    const data = await readProgressStream(response);
+    applyGenerateResult(data);
     await renderPdf(data.pdf_url);
-    setStatus(data.metadata?.ai_error ? `已生成，但 AI 有降级：${data.metadata.ai_error}` : `已生成，本次资料目录：public/runs/${runId}`);
-    copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
+    const doneMessage = data.metadata?.ai_error ? `已生成，但 AI 有降级：${data.metadata.ai_error}` : `已生成，本次资料目录：public/runs/${runId}`;
+    setProgress(100, doneMessage);
+    appendProgress("预览加载完成");
   } catch (error) {
+    setProgress(0, "生成失败");
+    appendProgress("生成失败", error.message);
     setStatus(error.message);
   } finally {
     generateBtn.disabled = false;
@@ -250,12 +385,14 @@ copySource.addEventListener("click", (event) => {
   selectedRect = null;
   saveShot.disabled = true;
   selectionBox.style.display = "none";
+  copyStatus.textContent = "请在中间 PDF 当前页拖拽截图区域";
 });
 
 document.getElementById("cancelShot").addEventListener("click", () => {
   shotModal.hidden = true;
   shotMode = false;
   selectionBox.style.display = "none";
+  copyStatus.textContent = "已取消截图";
 });
 
 pdfStage.addEventListener("mousedown", (event) => {
@@ -276,23 +413,29 @@ window.addEventListener("mouseup", () => {
 saveShot.addEventListener("click", async () => {
   if (!selectedRect || !runId) return;
   saveShot.disabled = true;
-  const image = cropSelection();
-  articleHtml = restoreArticleHtml();
-  const response = await fetch(`/api/runs/${runId}/screenshots`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image, placeholder: activePlaceholder, article_html: articleHtml })
-  });
-  const data = await response.json();
-  if (response.ok) {
-    articleHtml = data.article_html;
-    copySource.innerHTML = renderPlaceholders(articleHtml);
-    shotModal.hidden = true;
-    shotMode = false;
-    selectionBox.style.display = "none";
-    copyStatus.textContent = "截图已保存并替换到富文本";
-  } else {
-    copyStatus.textContent = data.error || "截图保存失败";
+  try {
+    copyStatus.textContent = "正在生成高清截图...";
+    const image = await cropSelection();
+    articleHtml = restoreArticleHtml();
+    const response = await fetch(`/api/runs/${runId}/screenshots`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image, placeholder: activePlaceholder, article_html: articleHtml })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      articleHtml = data.article_html;
+      copySource.innerHTML = renderPlaceholders(articleHtml);
+      shotModal.hidden = true;
+      shotMode = false;
+      selectionBox.style.display = "none";
+      copyStatus.textContent = "截图已保存并替换到富文本";
+    } else {
+      copyStatus.textContent = data.error || "截图保存失败";
+      saveShot.disabled = false;
+    }
+  } catch (error) {
+    copyStatus.textContent = error.message || "截图保存失败";
     saveShot.disabled = false;
   }
 });

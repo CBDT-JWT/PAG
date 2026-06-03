@@ -2,3 +2,6 @@
 .venv*/
 __pycache__/
 *.pyc
+output/
+public/runs
+example*.html

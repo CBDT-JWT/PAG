@@ -82,20 +82,26 @@ button.primary:hover:not(:disabled) {
 .workspace {
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(520px, 1fr) minmax(520px, 1fr);
+  grid-template-columns: minmax(300px, 360px) minmax(460px, 1.25fr) minmax(420px, .95fr);
   gap: 1px;
   background: var(--line);
 }
 
-.left-pane, .right-pane {
+.info-pane, .pdf-pane, .right-pane {
   min-height: 0;
   background: var(--bg);
 }
 
-.left-pane {
+.info-pane {
   display: grid;
-  grid-template-rows: auto 1fr 190px;
+  grid-template-rows: auto minmax(180px, 1fr);
   min-height: 0;
+  overflow: auto;
+}
+
+.pdf-pane {
+  min-height: 0;
+  display: grid;
 }
 
 .input-panel {
@@ -137,6 +143,66 @@ input[type="url"], textarea {
   font-size: 13px;
 }
 
+.progress-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.progress-header span {
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress-header strong {
+  color: var(--blue);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width .2s ease;
+}
+
+.progress-log {
+  max-height: 84px;
+  overflow: auto;
+  display: grid;
+  gap: 4px;
+  padding-right: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.progress-log p {
+  margin: 0;
+  word-break: break-word;
+}
+
 .pdf-panel {
   min-height: 0;
   display: grid;
@@ -158,6 +224,24 @@ input[type="url"], textarea {
   background: #1f2937;
   color: #fff;
   border-color: #374151;
+}
+
+.shot-tools {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shot-tools[hidden] {
+  display: none !important;
+}
+
+.shot-tools span {
+  color: #fca5a5;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .pdf-stage {
@@ -260,44 +344,7 @@ input[type="url"], textarea {
   background: #fff7f6;
 }
 
-.modal {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(15, 23, 42, .35);
-  z-index: 30;
-}
-.modal[hidden] {
-  display: none !important;
-}
-.modal-card {
-  width: min(420px, calc(100vw - 32px));
-  padding: 20px;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 20px 60px rgba(0,0,0,.2);
-}
-
-.modal-card h2 {
-  margin: 0 0 8px;
-  font-size: 18px;
-}
-
-.modal-card p {
-  margin: 0 0 18px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-@media (max-width: 980px) {
+@media (max-width: 1180px) {
   .app-shell {
     height: auto;
     min-height: 100vh;
@@ -307,8 +354,12 @@ input[type="url"], textarea {
     grid-template-columns: 1fr;
   }
 
-  .left-pane {
-    min-height: 900px;
+  .info-pane {
+    min-height: 520px;
+  }
+
+  .pdf-pane {
+    min-height: 760px;
   }
 
   .right-pane {
