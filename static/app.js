@@ -117,7 +117,7 @@ function applyGenerateResult(data) {
 }
 
 async function loadHistory() {
-  const response = await fetch("/api/runs");
+  const response = await fetch("/api/runs/history");
   const data = await response.json();
   const current = runId;
   historySelect.innerHTML = '<option value="">选择历史记录</option>';

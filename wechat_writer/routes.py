@@ -83,6 +83,8 @@ def register_routes(app):
         return send_from_directory(PUBLIC_DIR, filename)
 
     @app.get("/api/runs")
+    @app.get("/api/runs/")
+    @app.get("/api/runs/history")
     def api_runs():
         runs = []
         if RUNS_DIR.exists():
