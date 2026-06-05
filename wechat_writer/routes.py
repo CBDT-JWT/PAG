@@ -13,7 +13,7 @@ from PIL import Image, ImageOps
 
 from .agent import iterate_article_markdown
 from .config import PUBLIC_DIR, RUNS_DIR
-from .files import public_asset_url, public_base, safe_name
+from .files import public_base, public_url, safe_name
 from .generation import build_generation_payload
 from .wechat_html import image_section, markdown_to_wechat_html
 
@@ -36,6 +36,43 @@ def image_markdown_from_placeholder(placeholder, image_url):
     return f"![{alt}]({image_url})"
 
 
+def replace_article_image(article_html, article_markdown, image_url, placeholder="", target_url=""):
+    if placeholder:
+        article_html = article_html.replace(placeholder, image_section(image_url), 1)
+        article_markdown = article_markdown.replace(
+            placeholder,
+            image_markdown_from_placeholder(placeholder, image_url),
+            1,
+        )
+    elif target_url:
+        article_html = article_html.replace(target_url, image_url)
+        article_markdown = article_markdown.replace(target_url, image_url)
+    return article_html, article_markdown
+
+
+def run_created_at(run_dir):
+    try:
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.strptime(run_dir.name[:15], "%Y%m%d-%H%M%S"))
+    except ValueError:
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(run_dir.stat().st_mtime))
+
+
+def run_payload(run_dir):
+    metadata = read_json_file(run_dir / "metadata.json", {})
+    article_path = run_dir / "article.html"
+    markdown_path = run_dir / "article.md"
+    pdf_path = run_dir / "paper.pdf"
+    return {
+        "run_id": run_dir.name,
+        "created_at": run_created_at(run_dir),
+        "metadata": metadata,
+        "article_html": article_path.read_text(encoding="utf-8") if article_path.exists() else "",
+        "article_markdown": markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else "",
+        "pdf_url": public_url(pdf_path) if pdf_path.exists() else "",
+        "run_public_url": public_url(run_dir),
+    }
+
+
 def register_routes(app):
     @app.get("/")
     def index():
@@ -44,6 +81,26 @@ def register_routes(app):
     @app.get("/public/<path:filename>")
     def public_file(filename):
         return send_from_directory(PUBLIC_DIR, filename)
+
+    @app.get("/api/runs")
+    def api_runs():
+        runs = []
+        if RUNS_DIR.exists():
+            for run_dir in sorted((path for path in RUNS_DIR.iterdir() if path.is_dir()), reverse=True):
+                metadata = read_json_file(run_dir / "metadata.json", {})
+                runs.append({
+                    "run_id": run_dir.name,
+                    "paper_title": metadata.get("paper_title") or "未命名论文",
+                    "created_at": run_created_at(run_dir),
+                })
+        return jsonify({"runs": runs})
+
+    @app.get("/api/runs/<run_id>")
+    def api_run(run_id):
+        run_dir = RUNS_DIR / safe_name(run_id)
+        if not run_dir.exists():
+            return jsonify({"error": "项目目录不存在"}), 404
+        return jsonify(run_payload(run_dir))
 
     @app.post("/api/generate")
     def api_generate():
@@ -122,28 +179,79 @@ def register_routes(app):
                 article_path.read_text(encoding="utf-8") if article_path.exists() else ""
             )
             placeholder = data.get("placeholder", "")
-            image_url = public_asset_url(target, public_base())
-            if placeholder:
-                article_html = article_html.replace(placeholder, image_section(image_url), 1)
-            article_path.write_text(article_html, encoding="utf-8")
-
+            image_url = public_url(target)
             markdown_path = run_dir / "article.md"
             article_markdown = data.get("article_markdown") or (
                 markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else ""
             )
-            if placeholder and article_markdown:
-                article_markdown = article_markdown.replace(
-                    placeholder,
-                    image_markdown_from_placeholder(placeholder, image_url),
-                    1,
-                )
-                markdown_path.write_text(article_markdown, encoding="utf-8")
+            article_html, article_markdown = replace_article_image(
+                article_html,
+                article_markdown,
+                image_url,
+                placeholder=placeholder,
+                target_url=data.get("target_url", ""),
+            )
+            article_path.write_text(article_html, encoding="utf-8")
+            markdown_path.write_text(article_markdown, encoding="utf-8")
 
             return jsonify({
                 "image_url": image_url,
                 "article_html": article_html,
                 "article_markdown": article_markdown,
             })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+    @app.post("/api/runs/<run_id>/images")
+    def api_upload_image(run_id):
+        try:
+            run_dir = RUNS_DIR / safe_name(run_id)
+            if not run_dir.exists():
+                return jsonify({"error": "项目目录不存在"}), 404
+            upload = request.files.get("image")
+            if not upload or not upload.filename:
+                return jsonify({"error": "请选择图片"}), 400
+            compressed = compress_screenshot(upload.read())
+            target = run_dir / f"image-{int(time.time())}-{uuid.uuid4().hex[:6]}.jpg"
+            target.write_bytes(compressed)
+            image_url = public_url(target)
+            article_path = run_dir / "article.html"
+            markdown_path = run_dir / "article.md"
+            article_html = request.form.get("article_html") or (
+                article_path.read_text(encoding="utf-8") if article_path.exists() else ""
+            )
+            article_markdown = request.form.get("article_markdown") or (
+                markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else ""
+            )
+            article_html, article_markdown = replace_article_image(
+                article_html,
+                article_markdown,
+                image_url,
+                placeholder=request.form.get("placeholder", ""),
+                target_url=request.form.get("target_url", ""),
+            )
+            article_path.write_text(article_html, encoding="utf-8")
+            markdown_path.write_text(article_markdown, encoding="utf-8")
+            return jsonify({
+                "image_url": image_url,
+                "article_html": article_html,
+                "article_markdown": article_markdown,
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+    @app.post("/api/runs/<run_id>/sync")
+    def api_sync_run(run_id):
+        try:
+            data = request.get_json(force=True)
+            run_dir = RUNS_DIR / safe_name(run_id)
+            if not run_dir.exists():
+                return jsonify({"error": "项目目录不存在"}), 404
+            article_html = data.get("article_html", "")
+            article_markdown = data.get("article_markdown", "")
+            (run_dir / "article.html").write_text(article_html, encoding="utf-8")
+            (run_dir / "article.md").write_text(article_markdown, encoding="utf-8")
+            return jsonify({"ok": True})
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 

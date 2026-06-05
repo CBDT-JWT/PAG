@@ -16,6 +16,11 @@ const iteratePrompt = document.getElementById("iteratePrompt");
 const iterateBtn = document.getElementById("iterateBtn");
 const iterateStatus = document.getElementById("iterateStatus");
 const selectionStatus = document.getElementById("selectionStatus");
+const historySelect = document.getElementById("historySelect");
+const refreshHistory = document.getElementById("refreshHistory");
+const imageMenu = document.getElementById("imageMenu");
+const imageMenuTitle = document.getElementById("imageMenuTitle");
+const localImageInput = document.getElementById("localImageInput");
 const paperUrl = document.getElementById("paperUrl");
 const paperPdf = document.getElementById("paperPdf");
 const pdfStage = document.getElementById("pdfStage");
@@ -47,11 +52,15 @@ let runId = "";
 let articleHtml = "";
 let articleMarkdown = "";
 let activePlaceholder = "";
+let activeTargetUrl = "";
 let shotMode = false;
 let dragStart = null;
 let selectedRect = null;
 let selectedArticleHtml = "";
 let selectedArticleText = "";
+let syncTimer = null;
+let syncing = false;
+let syncPending = false;
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
@@ -87,6 +96,10 @@ function appendProgress(message, detail = "") {
   progressLog.scrollTop = progressLog.scrollHeight;
 }
 
+function normalizePublicUrls(value) {
+  return (value || "").replace(/https?:\/\/[^"'()\s]+\/public\//g, "/public/");
+}
+
 function applyGenerateResult(data) {
   console.log("data =", data);
   console.log("article_html length =", data.article_html?.length);
@@ -94,13 +107,46 @@ function applyGenerateResult(data) {
   console.log("metadata =", data.metadata);
   console.log("ai_error =", data.metadata?.ai_error);
   runId = data.run_id;
-  articleHtml = data.article_html || "";
-  articleMarkdown = data.article_markdown || "";
+  articleHtml = normalizePublicUrls(data.article_html);
+  articleMarkdown = normalizePublicUrls(data.article_markdown);
   setMeta(data.metadata || {});
   copySource.innerHTML = renderPlaceholders(articleHtml);
   copyBtn.disabled = false;
   iterateBtn.disabled = false;
   copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
+}
+
+async function loadHistory() {
+  const response = await fetch("/api/runs");
+  const data = await response.json();
+  const current = runId;
+  historySelect.innerHTML = '<option value="">选择历史记录</option>';
+  for (const item of data.runs || []) {
+    const option = document.createElement("option");
+    option.value = item.run_id;
+    option.textContent = `${item.created_at} · ${item.paper_title}`;
+    option.title = item.paper_title;
+    historySelect.appendChild(option);
+  }
+  historySelect.value = current;
+}
+
+async function loadRun(selectedRunId) {
+  const response = await fetch(`/api/runs/${selectedRunId}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "历史记录加载失败");
+  applyGenerateResult(data);
+  clearArticleSelection();
+  if (data.pdf_url) {
+    await renderPdf(data.pdf_url);
+  } else {
+    pdfDoc = null;
+    pdfCanvas.style.display = "none";
+    emptyState.style.display = "block";
+    document.getElementById("pageNum").textContent = "0";
+    document.getElementById("pageCount").textContent = "0";
+  }
+  setProgress(100, `已加载历史记录：${data.metadata?.paper_title || selectedRunId}`);
 }
 
 async function readProgressStream(response) {
@@ -189,11 +235,95 @@ function renderPlaceholders(rawHtml) {
 }
 
 function restoreArticleHtml() {
-  let html = copySource.innerHTML;
+  const clone = copySource.cloneNode(true);
+  clone.querySelectorAll(".iteration-selection").forEach((mark) => mark.replaceWith(...mark.childNodes));
+  let html = clone.innerHTML;
   html = html.replace(/<button[^>]*class="[^"]*image-placeholder[^"]*"[^>]*data-placeholder="([^"]+)"[^>]*>.*?<\/button>/gims, (_, token) => {
     return token.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
   });
   return html;
+}
+
+function inlineMarkdown(node) {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent || "";
+  if (node.nodeType !== Node.ELEMENT_NODE) return "";
+  if (node.classList.contains("iteration-selection")) {
+    return Array.from(node.childNodes).map(inlineMarkdown).join("");
+  }
+  if (node.matches(".image-placeholder")) return node.dataset.placeholder || "";
+  if (node.tagName === "IMG") {
+    const src = node.getAttribute("src") || node.getAttribute("data-src") || "";
+    return `![图片](${src})`;
+  }
+  if (node.tagName === "BR") return "\n";
+  const content = Array.from(node.childNodes).map(inlineMarkdown).join("");
+  if (node.tagName === "STRONG" || node.tagName === "B") return content.trim() ? `**${content}**` : "";
+  return content;
+}
+
+function markdownFromPreview() {
+  const lines = [];
+  const walk = (node) => {
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.dataset.markdownToken) {
+      lines.push(node.dataset.markdownToken);
+      return;
+    }
+    if (node.matches(".image-placeholder") || node.tagName === "IMG") {
+      lines.push(inlineMarkdown(node));
+      return;
+    }
+    if (/^H[1-6]$/.test(node.tagName) || node.dataset.markdownHeading) {
+      lines.push(`## ${(node.textContent || "").trim()}`);
+      return;
+    }
+    if (node.tagName === "P" || node.tagName === "LI") {
+      const value = inlineMarkdown(node).trim();
+      if (value) lines.push(node.tagName === "LI" ? `- ${value}` : value);
+      return;
+    }
+    for (const child of node.children) walk(child);
+  };
+  for (const child of copySource.children) walk(child);
+  return lines.filter(Boolean).join("\n\n");
+}
+
+function normalizeEditorFormatting() {
+  copySource.querySelectorAll("b, strong").forEach((node) => {
+    node.style.color = "rgb(67, 117, 185)";
+    node.style.boxSizing = "border-box";
+  });
+}
+
+function scheduleArticleSync() {
+  if (!runId) return;
+  syncPending = true;
+  clearTimeout(syncTimer);
+  copyStatus.textContent = "编辑待同步...";
+  syncTimer = setTimeout(syncArticle, 700);
+}
+
+async function syncArticle() {
+  if (!runId || syncing) return;
+  syncing = true;
+  syncPending = false;
+  articleHtml = restoreArticleHtml();
+  articleMarkdown = markdownFromPreview();
+  try {
+    const response = await fetch(`/api/runs/${runId}/sync`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ article_html: articleHtml, article_markdown: articleMarkdown })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "同步失败");
+    copyStatus.textContent = "编辑已自动同步";
+  } catch (error) {
+    copyStatus.textContent = error.message || "自动同步失败";
+  } finally {
+    syncing = false;
+    if (syncPending) scheduleArticleSync();
+  }
 }
 
 async function renderPdf(url) {
@@ -259,6 +389,7 @@ function absoluteUrl(value) {
 
 function getCopyHtml() {
   const clone = copySource.cloneNode(true);
+  clone.querySelectorAll(".iteration-selection").forEach((mark) => mark.replaceWith(...mark.childNodes));
   clone.querySelectorAll("img").forEach((img) => {
     const src = absoluteUrl(img.getAttribute("src") || img.getAttribute("data-src") || "");
     if (src) {
@@ -279,25 +410,36 @@ function getSelectionHtml(range) {
   return container.innerHTML;
 }
 
+function clearArticleSelection() {
+  copySource.querySelectorAll(".iteration-selection").forEach((mark) => mark.replaceWith(...mark.childNodes));
+  selectedArticleHtml = "";
+  selectedArticleText = "";
+  selectionStatus.textContent = "未选择局部";
+}
+
 function updateArticleSelection() {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    selectedArticleHtml = "";
-    selectedArticleText = "";
-    selectionStatus.textContent = "未选择局部";
     return;
   }
   const range = selection.getRangeAt(0);
   if (!copySource.contains(range.commonAncestorContainer)) {
-    selectedArticleHtml = "";
-    selectedArticleText = "";
-    selectionStatus.textContent = "未选择局部";
     return;
   }
   selectedArticleHtml = getSelectionHtml(range);
   selectedArticleText = selection.toString();
   const size = selectedArticleText.trim().length;
   selectionStatus.textContent = size ? `已选择 ${size} 字` : "未选择局部";
+  if (size) {
+    const mark = document.createElement("mark");
+    mark.className = "iteration-selection";
+    mark.appendChild(range.extractContents());
+    range.insertNode(mark);
+    const activeRange = document.createRange();
+    activeRange.selectNodeContents(mark);
+    selection.removeAllRanges();
+    selection.addRange(activeRange);
+  }
 }
 
 function canvasPointFromEvent(event) {
@@ -397,6 +539,44 @@ function downscaleCanvas(canvas, maxSide) {
 
 form.addEventListener("change", syncSourceMode);
 syncSourceMode();
+loadHistory().catch(() => {});
+
+refreshHistory.addEventListener("click", () => loadHistory().catch((error) => setStatus(error.message)));
+historySelect.addEventListener("change", async () => {
+  if (!historySelect.value) return;
+  try {
+    await loadRun(historySelect.value);
+  } catch (error) {
+    setStatus(error.message || "历史记录加载失败");
+  }
+});
+
+copySource.addEventListener("input", scheduleArticleSync);
+document.querySelectorAll(".editor-tools button").forEach((button) => {
+  button.addEventListener("mousedown", (event) => event.preventDefault());
+  button.addEventListener("click", () => {
+    copySource.focus();
+    if (button.dataset.action === "image") {
+      const token = `[[IMAGE:新增图片-${Date.now()}]]`;
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<button class="image-placeholder" type="button" data-placeholder="${token}">[新增图片]</button>`
+      );
+      activePlaceholder = token;
+      activeTargetUrl = "";
+      articleMarkdown = markdownFromPreview();
+      imageMenuTitle.textContent = "添加图片";
+      imageMenu.hidden = false;
+    } else if (button.dataset.command) {
+      document.execCommand(button.dataset.command, false);
+      normalizeEditorFormatting();
+    } else if (button.dataset.block) {
+      document.execCommand("formatBlock", false, button.dataset.block);
+    }
+    scheduleArticleSync();
+  });
+});
 
 generateBtn.addEventListener("click", async () => {
   generateBtn.disabled = true;
@@ -415,6 +595,7 @@ generateBtn.addEventListener("click", async () => {
     const data = await readProgressStream(response);
     applyGenerateResult(data);
     await renderPdf(data.pdf_url);
+    await loadHistory();
     const doneMessage = data.metadata?.ai_error ? `已生成，但 AI 有降级：${data.metadata.ai_error}` : `已生成，本次资料目录：public/runs/${runId}`;
     setProgress(100, doneMessage);
     appendProgress("预览加载完成");
@@ -428,6 +609,7 @@ generateBtn.addEventListener("click", async () => {
 });
 
 copyBtn.addEventListener("click", copyRichText);
+copySource.addEventListener("mousedown", clearArticleSelection);
 copySource.addEventListener("mouseup", updateArticleSelection);
 copySource.addEventListener("keyup", updateArticleSelection);
 
@@ -436,7 +618,7 @@ iterateBtn.addEventListener("click", async () => {
   if (!prompt || !runId) return;
 
   iterateBtn.disabled = true;
-  iterateStatus.textContent = selectedArticleHtml ? "正在按选区局部修改..." : "正在按要求迭代全文...";
+  iterateStatus.textContent = selectedArticleText ? "正在按选区局部修改..." : "正在按要求迭代全文...";
   try {
     const response = await fetch(`/api/runs/${runId}/iterate`, {
       method: "POST",
@@ -489,15 +671,65 @@ document.getElementById("zoomIn").addEventListener("click", async () => {
 });
 
 copySource.addEventListener("click", (event) => {
-  const target = event.target.closest(".image-placeholder");
-  if (!target) return;
-  activePlaceholder = target.dataset.placeholder;
+  const placeholder = event.target.closest(".image-placeholder");
+  const image = event.target.closest("img");
+  if (!placeholder && !image) return;
+  event.preventDefault();
+  activePlaceholder = placeholder?.dataset.placeholder || "";
+  activeTargetUrl = image?.getAttribute("src") || image?.getAttribute("data-src") || "";
+  articleHtml = restoreArticleHtml();
+  articleMarkdown = markdownFromPreview();
+  imageMenuTitle.textContent = image ? "更换图片" : "添加图片";
+  imageMenu.hidden = false;
+});
+
+document.getElementById("cancelImageMenu").addEventListener("click", () => {
+  imageMenu.hidden = true;
+});
+
+document.getElementById("chooseScreenshot").addEventListener("click", () => {
+  if (!pdfDoc) {
+    copyStatus.textContent = "当前历史记录没有可截图的 PDF，请选择本地上传";
+    imageMenu.hidden = true;
+    return;
+  }
+  imageMenu.hidden = true;
   shotModal.hidden = false;
   shotMode = true;
   selectedRect = null;
   saveShot.disabled = true;
   selectionBox.style.display = "none";
   copyStatus.textContent = "请在中间 PDF 当前页拖拽截图区域";
+});
+
+document.getElementById("chooseUpload").addEventListener("click", () => {
+  imageMenu.hidden = true;
+  localImageInput.click();
+});
+
+localImageInput.addEventListener("change", async () => {
+  const file = localImageInput.files?.[0];
+  if (!file || !runId) return;
+  const body = new FormData();
+  body.append("image", file);
+  body.append("placeholder", activePlaceholder);
+  body.append("target_url", activeTargetUrl);
+  body.append("article_html", restoreArticleHtml());
+  body.append("article_markdown", articleMarkdown);
+  copyStatus.textContent = "正在上传并替换图片...";
+  try {
+    const response = await fetch(`/api/runs/${runId}/images`, { method: "POST", body });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "图片上传失败");
+    articleHtml = data.article_html || "";
+    articleMarkdown = data.article_markdown || articleMarkdown;
+    copySource.innerHTML = renderPlaceholders(articleHtml);
+    copyStatus.textContent = "图片已上传并替换";
+  } catch (error) {
+    copyStatus.textContent = error.message || "图片上传失败";
+  } finally {
+    localImageInput.value = "";
+  }
 });
 
 document.getElementById("cancelShot").addEventListener("click", () => {
@@ -531,7 +763,13 @@ saveShot.addEventListener("click", async () => {
     const response = await fetch(`/api/runs/${runId}/screenshots`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image, placeholder: activePlaceholder, article_markdown: articleMarkdown })
+      body: JSON.stringify({
+        image,
+        placeholder: activePlaceholder,
+        target_url: activeTargetUrl,
+        article_html: restoreArticleHtml(),
+        article_markdown: articleMarkdown
+      })
     });
     const data = await response.json();
     if (response.ok) {

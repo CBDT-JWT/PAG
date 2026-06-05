@@ -15,6 +15,10 @@
         <p>上传论文或输入 URL，生成可直接粘贴到微信公众平台的富文本。</p>
       </div>
       <div class="actions">
+        <select id="historySelect" aria-label="选择历史生成记录">
+          <option value="">选择历史记录</option>
+        </select>
+        <button id="refreshHistory" type="button" title="刷新历史记录">刷新</button>
         <button id="generateBtn" class="primary" type="button">开始生成</button>
         <button id="copyBtn" type="button" disabled>复制</button>
       </div>
@@ -90,13 +94,33 @@
 
       <section class="right-pane">
         <div class="preview-toolbar">
-          <span>富文本预览</span>
+          <div class="editor-tools" aria-label="富文本编辑工具">
+            <button type="button" data-command="bold" title="加粗"><strong>B</strong></button>
+            <button type="button" data-block="h2" title="节标题">标题</button>
+            <button type="button" data-block="p" title="正文">正文</button>
+            <button type="button" data-action="image" title="插入图片">图片</button>
+            <button type="button" data-command="undo" title="撤销">撤销</button>
+            <button type="button" data-command="redo" title="重做">重做</button>
+          </div>
           <span id="copyStatus">生成完成后可复制</span>
         </div>
         <article id="copySource" class="wechat-preview" contenteditable="true"></article>
       </section>
     </main>
   </div>
+
+  <div id="imageMenu" class="image-menu" hidden>
+    <div class="image-menu-card">
+      <strong id="imageMenuTitle">添加图片</strong>
+      <p>选择从当前 PDF 截图，或上传本地图片。</p>
+      <div>
+        <button id="chooseScreenshot" class="primary" type="button">PDF 截图</button>
+        <button id="chooseUpload" type="button">本地上传</button>
+        <button id="cancelImageMenu" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+  <input id="localImageInput" type="file" accept="image/*" hidden>
 
   <script type="module" src="/static/app.js"></script>
 </body>

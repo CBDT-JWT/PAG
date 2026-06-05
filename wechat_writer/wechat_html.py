@@ -54,7 +54,7 @@ def paragraph_html(text):
 
 def heading_html(text):
     return (
-        f'<p style="text-align:center;margin:{TEXT_BLOCK_MARGIN};white-space:normal;padding:0;box-sizing:border-box;font-size:{SECTION_TITLE_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};letter-spacing:{LETTER_SPACING};">'
+        f'<p data-markdown-heading="2" style="text-align:center;margin:{TEXT_BLOCK_MARGIN};white-space:normal;padding:0;box-sizing:border-box;font-size:{SECTION_TITLE_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};letter-spacing:{LETTER_SPACING};">'
         '<strong style="color:rgb(62,62,62);box-sizing: border-box;">'
         f'<span><span style="font-size:{SECTION_TITLE_FONT_SIZE};">{escape_html_text(text)}</span></span>'
         "</strong>"
@@ -88,7 +88,7 @@ def paper_info_section(metadata):
     ])
 
     return (
-        '<section style="margin:20px 0 0;box-sizing:border-box;">'
+        '<section data-markdown-token="[[PAPER_INFO]]" style="margin:20px 0 0;box-sizing:border-box;">'
         f'<section style="font-size:{BODY_FONT_SIZE};line-height:{BODY_LINE_HEIGHT};padding:0;color:rgb(157,88,77);box-sizing:border-box;">'
         '<ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
         f"{items}"

@@ -77,6 +77,16 @@ button.primary:hover:not(:disabled) {
 .actions {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.actions select {
+  max-width: 320px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--text);
 }
 
 .workspace {
@@ -344,12 +354,26 @@ input[type="url"], textarea {
 
 .preview-toolbar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 10px 14px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
+}
+
+.editor-tools {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.editor-tools button {
+  padding: 5px 8px;
+  font-size: 12px;
 }
 
 .wechat-preview {
@@ -360,6 +384,26 @@ input[type="url"], textarea {
   overflow: auto;
   background: #fff;
   outline: none;
+}
+
+.wechat-preview:focus {
+  box-shadow: inset 0 0 0 1px rgba(22, 119, 255, .35);
+}
+
+.wechat-preview img {
+  cursor: pointer;
+}
+
+.wechat-preview img:hover {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.iteration-selection {
+  background: #fff2a8 !important;
+  color: inherit !important;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #fff2a8;
 }
 
 .image-placeholder {
@@ -374,6 +418,45 @@ input[type="url"], textarea {
   line-height: 1.5;
   cursor: crosshair;
   background: #fff7f6;
+}
+
+.image-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, .42);
+}
+
+.image-menu[hidden] {
+  display: none;
+}
+
+.image-menu-card {
+  width: min(420px, 100%);
+  padding: 18px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .22);
+}
+
+.image-menu-card strong {
+  display: block;
+  font-size: 16px;
+}
+
+.image-menu-card p {
+  margin: 8px 0 18px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.image-menu-card div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 1180px) {

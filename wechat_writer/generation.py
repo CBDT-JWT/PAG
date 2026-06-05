@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .agent import emit_progress, generate_article
 from .config import ASSETS_DIR
-from .files import create_run, download_pdf, extract_pdf_text, public_asset_url, public_url
+from .files import create_run, download_pdf, extract_pdf_text, public_url
 from .wechat_html import fallback_article
 
 
@@ -44,8 +44,8 @@ def build_generation_payload(form, files, progress=None, base_url=""):
     if tail_path:
         emit_progress(progress, 31, "尾部图片已保存", tail_path.name)
 
-    head_url = public_asset_url(head_path, base_url) if head_path else ""
-    tail_url = public_asset_url(tail_path, base_url) if tail_path else ""
+    head_url = public_url(head_path) if head_path else ""
+    tail_url = public_url(tail_path) if tail_path else ""
 
     emit_progress(progress, 36, "正在提取 PDF 文本")
     paper_text = extract_pdf_text(pdf_path)
