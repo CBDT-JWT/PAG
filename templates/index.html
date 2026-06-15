@@ -53,9 +53,9 @@
         </form>
 
         <div class="meta-panel">
-          <div><span>论文标题</span><strong id="metaTitle">-</strong></div>
-          <div><span>项目地址</span><a id="metaProject" href="#" target="_blank">-</a></div>
-          <div><span>论文地址</span><a id="metaPaper" href="#" target="_blank">-</a></div>
+          <div id="metaTitleRow"><span>论文标题</span><strong id="metaTitle"></strong></div>
+          <div id="metaProjectRow"><span>项目地址</span><a id="metaProject" href="#" target="_blank"></a></div>
+          <div id="metaPaperRow"><span>论文地址</span><a id="metaPaper" href="#" target="_blank"></a></div>
           <p id="statusLine">等待输入。</p>
         </div>
 
@@ -93,6 +93,16 @@
       </section>
 
       <section class="right-pane">
+        <section class="generated-panel">
+          <div class="generated-card">
+            <span>推送标题</span>
+            <strong id="generatedTitle">生成完成后显示</strong>
+          </div>
+          <div class="generated-card">
+            <span>结尾提问</span>
+            <p id="generatedQuestion">生成完成后显示</p>
+          </div>
+        </section>
         <div class="preview-toolbar">
           <div class="editor-tools" aria-label="富文本编辑工具">
             <button type="button" data-command="bold" title="加粗"><strong>B</strong></button>

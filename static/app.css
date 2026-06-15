@@ -299,6 +299,10 @@ input[type="url"], textarea {
   font-size: 13px;
 }
 
+.meta-panel div[hidden] {
+  display: none;
+}
+
 .meta-panel span {
   color: var(--muted);
 }
@@ -348,8 +352,46 @@ input[type="url"], textarea {
 
 .right-pane {
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: auto auto 1fr;
   min-height: 0;
+}
+
+.generated-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.generated-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid #e6dfd4;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fffdf8 0%, #faf6ee 100%);
+}
+
+.generated-card span {
+  color: #8b6b4a;
+  font-size: 12px;
+}
+
+.generated-card strong,
+.generated-card p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.generated-card strong {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.generated-card p {
+  font-size: 14px;
 }
 
 .preview-toolbar {

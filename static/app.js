@@ -29,6 +29,8 @@ const selectionBox = document.getElementById("selectionBox");
 const emptyState = document.querySelector(".empty-state");
 const shotModal = document.getElementById("shotModal");
 const saveShot = document.getElementById("saveShot");
+const generatedTitle = document.getElementById("generatedTitle");
+const generatedQuestion = document.getElementById("generatedQuestion");
 
 // const generateBtn = document.getElementById("generateBtn");
 // const statusLine = document.getElementById("statusLine");
@@ -218,13 +220,21 @@ function syncSourceMode() {
 }
 
 function setMeta(meta) {
-  document.getElementById("metaTitle").textContent = meta.paper_title || "-";
+  const titleRow = document.getElementById("metaTitleRow");
+  const projectRow = document.getElementById("metaProjectRow");
+  const paperRow = document.getElementById("metaPaperRow");
+  document.getElementById("metaTitle").textContent = meta.paper_title || "";
   const project = document.getElementById("metaProject");
   const paper = document.getElementById("metaPaper");
-  project.textContent = meta.project_url || "-";
+  project.textContent = meta.project_url || "";
   project.href = meta.project_url || "#";
-  paper.textContent = meta.paper_url || "-";
+  paper.textContent = meta.paper_url || "";
   paper.href = meta.paper_url || "#";
+  titleRow.hidden = !meta.paper_title;
+  projectRow.hidden = !meta.project_url;
+  paperRow.hidden = !meta.paper_url;
+  generatedTitle.textContent = meta.article_title || "未生成独立标题";
+  generatedQuestion.textContent = meta.reader_question || "未生成结尾提问";
 }
 
 function renderPlaceholders(rawHtml) {
@@ -250,6 +260,13 @@ function inlineMarkdown(node) {
   if (node.classList.contains("iteration-selection")) {
     return Array.from(node.childNodes).map(inlineMarkdown).join("");
   }
+  if (node.dataset.generatedQuestion === "true") return "";
+  if (node.dataset.formulaSource && node.dataset.formulaBlock === "true") {
+    return `$$\n${node.dataset.formulaSource}\n$$`;
+  }
+  if (node.dataset.formulaSource) {
+    return `$${node.dataset.formulaSource}$`;
+  }
   if (node.matches(".image-placeholder")) return node.dataset.placeholder || "";
   if (node.tagName === "IMG") {
     const src = node.getAttribute("src") || node.getAttribute("data-src") || "";
@@ -265,8 +282,13 @@ function markdownFromPreview() {
   const lines = [];
   const walk = (node) => {
     if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.dataset.generatedQuestion === "true") return;
     if (node.dataset.markdownToken) {
       lines.push(node.dataset.markdownToken);
+      return;
+    }
+    if (node.dataset.formulaSource && node.dataset.formulaBlock === "true") {
+      lines.push(`$$\n${node.dataset.formulaSource}\n$$`);
       return;
     }
     if (node.matches(".image-placeholder") || node.tagName === "IMG") {
@@ -290,7 +312,6 @@ function markdownFromPreview() {
 
 function normalizeEditorFormatting() {
   copySource.querySelectorAll("b, strong").forEach((node) => {
-    node.style.color = "rgb(67, 117, 185)";
     node.style.boxSizing = "border-box";
   });
 }
@@ -633,6 +654,7 @@ iterateBtn.addEventListener("click", async () => {
     if (!response.ok) throw new Error(data.error || "迭代修改失败");
     articleHtml = data.article_html || "";
     articleMarkdown = data.article_markdown || "";
+    if (data.metadata) setMeta(data.metadata);
     copySource.innerHTML = renderPlaceholders(articleHtml);
     selectedArticleHtml = "";
     selectedArticleText = "";

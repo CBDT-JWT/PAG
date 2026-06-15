@@ -33,7 +33,7 @@ article_markdown 写作要求：
 1. 使用自然流畅的中文公众号文章风格，不要堆砌分点。但是，每个段落要稍微短一些。把长段文字切割，用更单独成段的句子来支撑全文。
 2. 文章开头必须放 [[HEAD_IMAGE]]。
 3. 论文信息部分只放一个占位符 [[PAPER_INFO]]，不要自己写论文标题、项目地址、论文地址列表。
-4. 正文图片使用 [[IMAGE:具体图片描述]] 占位，例如 [[IMAGE:nuReasoning 数据构建流程图]]。使用论文中存在的图。
+4. 正文图片使用 [[IMAGE:具体图片描述]] 占位，例如 [[IMAGE:Figure 2 nuReasoning 数据构建流程图]]。使用论文中存在的图。**图片描述里必须包含原文中的图片标题、图号或 caption 关键信息**，不要只写你自己的概括。
 5. 如果 tail_url 非空，文章末尾放 [[TAIL_IMAGE]]。
 6. 二级标题使用 Markdown 二级标题，例如：## 现有数据集的不足。**不能有三级标题。**所有节标题不要直接用“核心设计”、“亮点复现”、“总结与展望”这样的结构标题，用具体内容做标题，比如“DriveMA：让元动作可验证”、“简单接口的惊人潜力”。
 7. 重点强调使用 **加粗文本**。应当重点强调核心概念、工作缩写、核心词语等，而不是只在段落开始加。
@@ -58,6 +58,32 @@ article_markdown 写作要求：
 > 在这类长尾场景里，模型只知道“看见了什么”远远不够。它还需要**理解目标之间的空间关系**，判断哪些对象真正影响驾驶，选择合适动作，并评估其他动作可能带来的后果。
 
 > 这篇来自 UCLA 和 Motional 的工作，提出了一个**面向长尾自动驾驶场景的推理数据集和基准**。
+"""
+
+TITLE_QUESTION_PROMPT = """
+你是资深中文科技公众号编辑。
+
+你会收到一篇已经写好的公众号文章 Markdown 正文。
+你的任务是额外生成两个独立字段：
+1. 一个有画面感、有趣、不像论文标题改写的推送标题。
+2. 一个放在文末向读者发问的问题。
+
+你必须只输出一个合法 JSON 对象。
+不要输出 Markdown 代码块。
+不要输出解释。
+
+JSON 字段必须为：
+{
+  "article_title": "推送标题",
+  "reader_question": "给读者的提问"
+}
+
+要求：
+1. 标题要像公众号推送标题，不要照抄论文标题，不要太像摘要，不要使用书名号。
+2. 标题要具体，有画面感，有一点张力，但不要低俗标题党。
+3. 读者提问必须只有一句，适合放在文章结尾，能引发思考。
+4. 提问不要复述标题，要围绕文章核心观点、方法意义或行业趋势发问。
+5. 不要输出空字段；如果信息不足，也要尽量给出自然的标题和提问。
 """
 
 TOOLS = [
@@ -319,6 +345,8 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         "paper_url": paper_url or "",
         "article_markdown": "",
         "article_html": "",
+        "article_title": "",
+        "reader_question": "",
     }
 
     emit_progress(progress, 44, "正在检索论文相关项目和补充信息")
@@ -413,7 +441,7 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
             "article_markdown": article_markdown,
         })
         metadata = {
-            "paper_title": data.get("paper_title") or "未能自动识别标题",
+            "paper_title": data.get("paper_title") or "",
             "project_url": data.get("project_url") or "",
             "paper_url": data.get("paper_url") or paper_url or "",
         }
@@ -444,6 +472,41 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         emit_progress(progress, 99, "AI 生成失败，正在生成降级稿", repr(exc))
         data["article_html"] = fallback_article(data, paper_text, head_url, tail_url)
         return data
+
+
+def generate_title_and_question(article_markdown, paper_title="", progress=None):
+    if not (article_markdown or "").strip():
+        return {"article_title": "", "reader_question": ""}
+
+    messages = [
+        {"role": "system", "content": TITLE_QUESTION_PROMPT},
+        {
+            "role": "user",
+            "content": f"""论文标题：{paper_title or "无"}
+
+文章正文：
+{article_markdown}
+""",
+        },
+    ]
+
+    try:
+        emit_progress(progress, 99, "正在生成独立标题和结尾提问")
+        message = chat(messages, tools=None, stream=False, max_tokens=800)["choices"][0]["message"]
+        parsed = parse_json_text(message.get("content", "") or "")
+        return {
+            "article_title": (parsed.get("article_title") or parsed.get("title") or parsed.get("标题") or "").strip(),
+            "reader_question": (
+                parsed.get("reader_question")
+                or parsed.get("question")
+                or parsed.get("reader_prompt")
+                or parsed.get("提问")
+                or ""
+            ).strip(),
+        }
+    except Exception as exc:
+        emit_progress(progress, 99, "独立标题和提问生成失败，保留空字段", repr(exc))
+        return {"article_title": "", "reader_question": ""}
 
 
 def iterate_article_markdown(article_markdown, instruction, selected_text=""):

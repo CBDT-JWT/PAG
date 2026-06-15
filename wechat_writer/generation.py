@@ -2,10 +2,11 @@ import json
 import shutil
 from pathlib import Path
 
-from .agent import emit_progress, generate_article
+from .agent import emit_progress, generate_article, generate_title_and_question
 from .config import ASSETS_DIR
 from .files import create_run, download_pdf, extract_pdf_text, public_url
-from .wechat_html import fallback_article
+from .formula_renderer import FormulaRenderer
+from .wechat_html import fallback_article, markdown_to_wechat_html
 
 
 def build_generation_payload(form, files, progress=None, base_url=""):
@@ -52,14 +53,31 @@ def build_generation_payload(form, files, progress=None, base_url=""):
     emit_progress(progress, 43, f"PDF 文本提取完成：{len(paper_text)} 字")
 
     ai_data = generate_article(paper_text, display_paper_url, focus_authors, head_url, tail_url, progress=progress)
+    title_question = generate_title_and_question(
+        ai_data.get("article_markdown", ""),
+        paper_title=ai_data.get("paper_title", ""),
+        progress=progress,
+    )
     metadata = {
-        "paper_title": ai_data.get("paper_title") or "未能自动识别标题",
+        "paper_title": ai_data.get("paper_title") or "",
         "project_url": ai_data.get("project_url") or "",
         "paper_url": ai_data.get("paper_url") or display_paper_url,
+        "article_title": title_question.get("article_title") or "",
+        "reader_question": title_question.get("reader_question") or "",
         "ai_error": ai_data.get("_error", ""),
     }
-    article_html = ai_data.get("article_html") or fallback_article(metadata, paper_text, head_url, tail_url)
     article_markdown = ai_data.get("article_markdown") or ""
+    if article_markdown:
+        formula_renderer = FormulaRenderer(run_dir / "formula-assets")
+        article_html = markdown_to_wechat_html(
+            article_markdown,
+            metadata=metadata,
+            head_url=head_url,
+            tail_url=tail_url,
+            formula_renderer=formula_renderer,
+        )
+    else:
+        article_html = fallback_article(metadata, paper_text, head_url, tail_url)
     print("[api_generate] article_html length:", len(article_html or ""), flush=True)
     print("[api_generate] article_html head:", repr((article_html or "")[:500]), flush=True)
 
