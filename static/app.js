@@ -31,6 +31,7 @@ const shotModal = document.getElementById("shotModal");
 const saveShot = document.getElementById("saveShot");
 const generatedTitle = document.getElementById("generatedTitle");
 const generatedQuestion = document.getElementById("generatedQuestion");
+const generatedTitleOptions = document.getElementById("generatedTitleOptions");
 
 // const generateBtn = document.getElementById("generateBtn");
 // const statusLine = document.getElementById("statusLine");
@@ -118,6 +119,24 @@ function applyGenerateResult(data) {
   copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
 }
 
+function renderTitleOptions(titles = [], activeTitle = "") {
+  generatedTitleOptions.innerHTML = "";
+  const normalized = [];
+  for (const value of titles || []) {
+    const text = String(value || "").trim();
+    if (text && !normalized.includes(text)) normalized.push(text);
+  }
+  if (activeTitle && !normalized.includes(activeTitle)) normalized.unshift(activeTitle);
+  normalized
+    .filter((title) => title !== activeTitle)
+    .forEach((title) => {
+      const item = document.createElement("span");
+      item.className = "title-option";
+      item.textContent = title;
+      generatedTitleOptions.appendChild(item);
+    });
+}
+
 async function loadHistory() {
   const response = await fetch("/api/runs/history");
   const data = await response.json();
@@ -203,6 +222,7 @@ async function readProgressStream(response) {
     if (event.type === "progress") {
       setProgress(event.percent, event.message);
       appendProgress(event.message, event.detail || "");
+      if (event.metadata) setMeta(event.metadata);
     } else if (event.type === "heartbeat") {
       appendProgress(event.message || "仍在处理中");
     } else if (event.type === "done") {
@@ -235,6 +255,7 @@ function setMeta(meta) {
   paperRow.hidden = !meta.paper_url;
   generatedTitle.textContent = meta.article_title || "未生成独立标题";
   generatedQuestion.textContent = meta.reader_question || "未生成结尾提问";
+  renderTitleOptions(meta.article_titles || [], meta.article_title || "");
 }
 
 function renderPlaceholders(rawHtml) {

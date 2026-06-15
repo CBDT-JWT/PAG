@@ -2,7 +2,7 @@ import json
 import shutil
 from pathlib import Path
 
-from .agent import emit_progress, generate_article, generate_title_and_question
+from .agent import emit_progress, extract_metadata, generate_article, generate_title_and_question
 from .config import ASSETS_DIR
 from .files import create_run, download_pdf, extract_pdf_text, public_url
 from .formula_renderer import FormulaRenderer
@@ -53,6 +53,8 @@ def build_generation_payload(form, files, progress=None, base_url=""):
     emit_progress(progress, 43, f"PDF 文本提取完成：{len(paper_text)} 字")
 
     ai_data = generate_article(paper_text, display_paper_url, focus_authors, head_url, tail_url, progress=progress)
+    early_metadata = extract_metadata(ai_data, paper_url=display_paper_url)
+    emit_progress(progress, 88, "论文信息已识别", metadata=early_metadata)
     title_question = generate_title_and_question(
         ai_data.get("article_markdown", ""),
         paper_title=ai_data.get("paper_title", ""),
@@ -62,6 +64,7 @@ def build_generation_payload(form, files, progress=None, base_url=""):
         "paper_title": ai_data.get("paper_title") or "",
         "project_url": ai_data.get("project_url") or "",
         "paper_url": ai_data.get("paper_url") or display_paper_url,
+        "article_titles": title_question.get("article_titles") or [],
         "article_title": title_question.get("article_title") or "",
         "reader_question": title_question.get("reader_question") or "",
         "ai_error": ai_data.get("_error", ""),

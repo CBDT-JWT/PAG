@@ -44,7 +44,7 @@ def render_inline_markdown(text, formula_renderer=None, allow_bold=True):
             parts.append(rendered)
         elif allow_bold and bold_text is not None:
             parts.append(
-                '<strong style="box-sizing:border-box;">'
+                '<strong style="color:rgb(67,117,185);box-sizing:border-box;">'
                 f"{render_inline_markdown(bold_text, formula_renderer=formula_renderer, allow_bold=False)}"
                 "</strong>"
             )

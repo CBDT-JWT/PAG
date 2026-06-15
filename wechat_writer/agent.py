@@ -41,6 +41,7 @@ article_markdown 写作要求：
 9. 总字数3k左右，**每个段落不能太长**，**严禁使用三级及以上标题！！！**
 10. 格式上，应当是一段leadingin-论文信息-一段话收束leadin-前序研究不足或现状-核心设计-具体实验-亮点重现-总结展望，leadingin部分不需要二级标题，其他需要。leadingin要有一点故事性。
 11. 不用“论文”做主语，可以用“研究团队”或者项目名称做句子主语，用更叙事感的语言讲论文的故事。
+12. 如果论文中有关键公式、目标函数、几何表达、概率定义、损失函数、状态转移或评价指标，**鼓励自然地使用 LaTeX 公式** 来帮助解释。优先使用行内公式 `$...$` 融入句子；只有在公式较长、需要单独展示时才使用块公式 `$$...$$`。
 
 前言例子：
 > 自动驾驶系统已经能够完成很多标准驾驶任务。
@@ -64,8 +65,8 @@ TITLE_QUESTION_PROMPT = """
 你是资深中文科技公众号编辑。
 
 你会收到一篇已经写好的公众号文章 Markdown 正文。
-你的任务是额外生成两个独立字段：
-1. 一个有画面感、有趣、不像论文标题改写的推送标题。
+你的任务是额外生成标题候选和一个结尾提问：
+1. 多个有画面感、有趣、不像论文标题改写的推送标题。
 2. 一个放在文末向读者发问的问题。
 
 你必须只输出一个合法 JSON 对象。
@@ -74,16 +75,19 @@ TITLE_QUESTION_PROMPT = """
 
 JSON 字段必须为：
 {
-  "article_title": "推送标题",
+  "article_titles": ["标题1", "标题2", "标题3"],
+  "article_title": "最终默认展示标题",
   "reader_question": "给读者的提问"
 }
 
 要求：
 1. 标题要像公众号推送标题，不要照抄论文标题，不要太像摘要，不要使用书名号。
 2. 标题要具体，有画面感，有一点张力，但不要低俗标题党。
+2.1 至少给 3 个标题候选，彼此要有区分度。
 3. 读者提问必须只有一句，适合放在文章结尾，能引发思考。
 4. 提问不要复述标题，要围绕文章核心观点、方法意义或行业趋势发问。
-5. 不要输出空字段；如果信息不足，也要尽量给出自然的标题和提问。
+5. `article_title` 必须从 `article_titles` 中选择一个最适合作为默认展示的标题。
+6. 不要输出空字段；如果信息不足，也要尽量给出自然的标题和提问。
 """
 
 TOOLS = [
@@ -97,9 +101,17 @@ STREAM_PROGRESS_EXPECTED_CHARS = 6500
 STREAM_PROGRESS_MAX = 99
 
 
-def emit_progress(progress, percent, message, detail=""):
+def emit_progress(progress, percent, message, detail="", **extra):
     if progress:
-        progress(percent, message, detail)
+        progress(percent, message, detail, **extra)
+
+
+def extract_metadata(parsed, paper_url=""):
+    return {
+        "paper_title": parsed.get("paper_title") or parsed.get("title") or parsed.get("论文标题") or "",
+        "project_url": parsed.get("project_url") or parsed.get("project") or parsed.get("project_link") or parsed.get("项目地址") or "",
+        "paper_url": parsed.get("paper_url") or parsed.get("url") or parsed.get("论文地址") or paper_url or "",
+    }
 
 
 def parse_dsml_tool_calls(text):
@@ -434,17 +446,11 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         emit_progress(progress, 99, "正在解析模型返回内容")
         parsed = parse_json_text(final_content)
         article_markdown = get_article_markdown(parsed)
+        metadata = extract_metadata(parsed, paper_url=paper_url)
         data.update({
-            "paper_title": parsed.get("paper_title") or parsed.get("title") or parsed.get("论文标题") or "",
-            "project_url": parsed.get("project_url") or parsed.get("project") or parsed.get("project_link") or parsed.get("项目地址") or "",
-            "paper_url": parsed.get("paper_url") or parsed.get("url") or parsed.get("论文地址") or paper_url or "",
+            **metadata,
             "article_markdown": article_markdown,
         })
-        metadata = {
-            "paper_title": data.get("paper_title") or "",
-            "project_url": data.get("project_url") or "",
-            "paper_url": data.get("paper_url") or paper_url or "",
-        }
         print("[generate_article] parsed keys:", list(parsed.keys()), flush=True)
         print("[generate_article] article_markdown length:", len(data["article_markdown"]), flush=True)
 
@@ -476,7 +482,7 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
 
 def generate_title_and_question(article_markdown, paper_title="", progress=None):
     if not (article_markdown or "").strip():
-        return {"article_title": "", "reader_question": ""}
+        return {"article_titles": [], "article_title": "", "reader_question": ""}
 
     messages = [
         {"role": "system", "content": TITLE_QUESTION_PROMPT},
@@ -494,8 +500,18 @@ def generate_title_and_question(article_markdown, paper_title="", progress=None)
         emit_progress(progress, 99, "正在生成独立标题和结尾提问")
         message = chat(messages, tools=None, stream=False, max_tokens=800)["choices"][0]["message"]
         parsed = parse_json_text(message.get("content", "") or "")
+        titles = parsed.get("article_titles") or parsed.get("titles") or parsed.get("标题候选") or []
+        if isinstance(titles, str):
+            titles = [titles]
+        titles = [str(item).strip() for item in titles if str(item).strip()]
+        article_title = (parsed.get("article_title") or parsed.get("title") or parsed.get("标题") or "").strip()
+        if article_title and article_title not in titles:
+            titles.insert(0, article_title)
+        if not article_title and titles:
+            article_title = titles[0]
         return {
-            "article_title": (parsed.get("article_title") or parsed.get("title") or parsed.get("标题") or "").strip(),
+            "article_titles": titles[:5],
+            "article_title": article_title,
             "reader_question": (
                 parsed.get("reader_question")
                 or parsed.get("question")
@@ -506,7 +522,7 @@ def generate_title_and_question(article_markdown, paper_title="", progress=None)
         }
     except Exception as exc:
         emit_progress(progress, 99, "独立标题和提问生成失败，保留空字段", repr(exc))
-        return {"article_title": "", "reader_question": ""}
+        return {"article_titles": [], "article_title": "", "reader_question": ""}
 
 
 def iterate_article_markdown(article_markdown, instruction, selected_text=""):

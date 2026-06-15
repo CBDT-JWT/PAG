@@ -394,6 +394,21 @@ input[type="url"], textarea {
   font-size: 14px;
 }
 
+.title-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.title-option {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #efe7db;
+  color: #745534;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .preview-toolbar {
   display: flex;
   align-items: center;
