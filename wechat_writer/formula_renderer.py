@@ -1,7 +1,7 @@
 import hashlib
 import html
-import re
 from pathlib import Path
+from xml.etree import ElementTree
 
 from .files import public_url
 
@@ -10,8 +10,7 @@ class FormulaRenderer:
     def __init__(self, output_dir):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        self._matplotlib = None
-        self._plt = None
+        self._zm = None
 
     def render_inline(self, formula):
         return self._render(formula, display=False)
@@ -23,75 +22,79 @@ class FormulaRenderer:
         formula = (formula or "").strip()
         if not formula:
             return ""
-        prepared = self._normalize_for_mathtext(formula)
-        try:
-            plt = self._load_pyplot()
-        except Exception:
-            return self._fallback(formula, display=display)
 
         digest = hashlib.sha1(f"{display}:{formula}".encode("utf-8")).hexdigest()[:16]
-        path = self.output_dir / f"formula-{digest}.png"
-        if not path.exists():
-            try:
-                dpi = 220 if display else 200
-                fontsize = 17 if display else 15
-                figure = plt.figure(figsize=(0.01, 0.01), dpi=dpi)
-                figure.patch.set_alpha(0)
-                text = figure.text(
-                    0,
-                    0,
-                    f"${prepared}$" if not display else f"$\\displaystyle {prepared}$",
-                    fontsize=fontsize,
-                    color="#1f2933",
-                )
-                figure.canvas.draw()
-                bbox = text.get_window_extent(renderer=figure.canvas.get_renderer()).expanded(1.08, 1.22)
-                width = max(0.01, bbox.width / dpi)
-                height = max(0.01, bbox.height / dpi)
-                figure.set_size_inches(width, height)
-                text.set_position((0, 0))
-                figure.savefig(
-                    path,
-                    dpi=dpi,
-                    transparent=True,
-                    bbox_inches="tight",
-                    pad_inches=0.03 if display else 0.01,
-                )
-                plt.close(figure)
-            except Exception:
-                try:
-                    plt.close(figure)
-                except Exception:
-                    pass
+        svg_path = self.output_dir / f"formula-{digest}.svg"
+        if not svg_path.exists():
+            if not self._render_with_ziamath(formula, display=display, output_path=svg_path):
                 return self._fallback(formula, display=display)
 
-        url = public_url(path)
+        return self._html_for_svg(svg_path, formula, display=display)
+
+    def _render_with_ziamath(self, formula, display, output_path):
+        try:
+            zm = self._load_ziamath()
+            math = zm.Latex(formula, inline=not display)
+            svg_text = math.svg()
+            output_path.write_text(self._normalize_svg(svg_text), encoding="utf-8")
+            return True
+        except Exception:
+            return False
+
+    def _load_ziamath(self):
+        if self._zm is not None:
+            return self._zm
+        import ziamath as zm
+
+        self._zm = zm
+        return zm
+
+    def _html_for_svg(self, svg_path, formula, display):
+        url = public_url(svg_path)
         escaped = html.escape(formula)
         if display:
             return (
                 '<section data-formula-block="true" contenteditable="false" '
                 f'data-formula-source="{escaped}" '
-                'style="margin:18px 10px;text-align:center;box-sizing:border-box;">'
+                'style="margin:20px 10px;text-align:center;box-sizing:border-box;">'
                 f'<img src="{url}" data-src="{url}" alt="{escaped}" '
                 'style="display:inline-block;max-width:100%;height:auto;vertical-align:middle;" />'
                 "</section>"
             )
         return (
             f'<img src="{url}" data-src="{url}" alt="{escaped}" data-formula-inline="true" data-formula-source="{escaped}" '
-            'style="display:inline-block;vertical-align:-0.28em;max-height:1.7em;" />'
+            'style="display:inline-block;vertical-align:-0.34em;height:1.55em;max-width:100%;" />'
         )
 
-    def _load_pyplot(self):
-        if self._plt is not None:
-            return self._plt
-        import matplotlib
+    def _normalize_svg(self, svg_text):
+        root = ElementTree.fromstring(svg_text)
+        if not root.tag.endswith("svg"):
+            return svg_text
 
-        matplotlib.use("Agg")
-        from matplotlib import pyplot as plt
+        root.attrib.pop("style", None)
+        root.set("xmlns", "http://www.w3.org/2000/svg")
+        root.set("preserveAspectRatio", "xMidYMid meet")
 
-        self._matplotlib = matplotlib
-        self._plt = plt
-        return plt
+        for element in root.iter():
+            style = element.attrib.pop("style", "")
+            if style:
+                style_map = self._parse_style(style)
+                fill = style_map.get("fill")
+                if fill and fill.lower() not in {"none", "transparent"}:
+                    element.set("fill", fill)
+            if element.tag.endswith("path") and "fill" not in element.attrib:
+                element.set("fill", "#1f2933")
+
+        return ElementTree.tostring(root, encoding="unicode")
+
+    def _parse_style(self, style_text):
+        mapping = {}
+        for part in [item.strip() for item in style_text.split(";") if item.strip()]:
+            if ":" not in part:
+                continue
+            key, value = part.split(":", 1)
+            mapping[key.strip()] = value.strip()
+        return mapping
 
     def _fallback(self, formula, display=False):
         escaped = html.escape(formula)
@@ -99,72 +102,14 @@ class FormulaRenderer:
             return (
                 '<section data-formula-block="true" contenteditable="false" '
                 f'data-formula-source="{escaped}" '
-                'style="margin:18px 10px;padding:10px 12px;border-radius:10px;background:#f8fafc;'
-                'font-family:Menlo, Monaco, Consolas, monospace;font-size:14px;line-height:24px;'
-                'text-align:center;box-sizing:border-box;">'
-                f"{escaped}"
+                'style="margin:20px 10px;text-align:center;box-sizing:border-box;">'
+                f'<p style="display:inline-block;margin:0;padding:10px 14px;border-radius:12px;background:#f8fafc;'
+                'font-family:STIX Two Math, Cambria Math, Times New Roman, serif;font-size:18px;line-height:1.5;color:#1f2933;">'
+                f"{escaped}</p>"
                 "</section>"
             )
         return (
             f'<code data-formula-source="{escaped}" style="padding:0 4px;border-radius:4px;background:#f8fafc;'
-            'font-family:Menlo, Monaco, Consolas, monospace;font-size:0.95em;">'
-            f"{escaped}"
-            "</code>"
+            'font-family:STIX Two Math, Cambria Math, Times New Roman, serif;font-size:0.95em;">'
+            f"{escaped}</code>"
         )
-
-    def _normalize_for_mathtext(self, formula):
-        normalized = formula
-        normalized = self._replace_text_like_command(normalized, "text", "mathrm")
-        normalized = self._replace_text_like_command(normalized, "operatorname", "mathrm")
-        normalized = re.sub(r"\\bm\s*\{", r"\\mathbf{", normalized)
-        normalized = re.sub(r"\\boldsymbol\s*\{", r"\\mathbf{", normalized)
-        return normalized
-
-    def _replace_text_like_command(self, formula, source_command, target_command):
-        marker = f"\\{source_command}"
-        index = 0
-        parts = []
-        while True:
-            start = formula.find(marker, index)
-            if start < 0:
-                parts.append(formula[index:])
-                break
-            parts.append(formula[index:start])
-            brace_start = start + len(marker)
-            while brace_start < len(formula) and formula[brace_start].isspace():
-                brace_start += 1
-            if brace_start >= len(formula) or formula[brace_start] != "{":
-                parts.append(marker)
-                index = start + len(marker)
-                continue
-            content, brace_end = self._read_braced(formula, brace_start)
-            if brace_end < 0:
-                parts.append(formula[start:])
-                break
-            converted = self._normalize_text_content(content)
-            parts.append(f"\\{target_command}{{{converted}}}")
-            index = brace_end + 1
-        return "".join(parts)
-
-    def _read_braced(self, text, brace_start):
-        depth = 0
-        content = []
-        for index in range(brace_start, len(text)):
-            char = text[index]
-            if char == "{":
-                depth += 1
-                if depth > 1:
-                    content.append(char)
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return "".join(content), index
-                content.append(char)
-            else:
-                content.append(char)
-        return "", -1
-
-    def _normalize_text_content(self, text):
-        text = text.strip()
-        text = re.sub(r"\s+", r"\\ ", text)
-        return text

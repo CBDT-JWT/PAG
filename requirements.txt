@@ -3,7 +3,7 @@ openai>=1.0.0
 python-dotenv>=1.0.0
 PyPDF2>=3.0.0
 Pillow>=10.0.0
-matplotlib>=3.7.0,<3.8
+ziamath>=0.13
 # Optional but recommended for better PDF reading:
 #   brew install poppler
 #
