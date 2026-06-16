@@ -282,12 +282,6 @@ function inlineMarkdown(node) {
     return Array.from(node.childNodes).map(inlineMarkdown).join("");
   }
   if (node.dataset.generatedQuestion === "true") return "";
-  if (node.dataset.formulaSource && node.dataset.formulaBlock === "true") {
-    return `$$\n${node.dataset.formulaSource}\n$$`;
-  }
-  if (node.dataset.formulaSource) {
-    return `$${node.dataset.formulaSource}$`;
-  }
   if (node.matches(".image-placeholder")) return node.dataset.placeholder || "";
   if (node.tagName === "IMG") {
     const src = node.getAttribute("src") || node.getAttribute("data-src") || "";
@@ -306,10 +300,6 @@ function markdownFromPreview() {
     if (node.dataset.generatedQuestion === "true") return;
     if (node.dataset.markdownToken) {
       lines.push(node.dataset.markdownToken);
-      return;
-    }
-    if (node.dataset.formulaSource && node.dataset.formulaBlock === "true") {
-      lines.push(`$$\n${node.dataset.formulaSource}\n$$`);
       return;
     }
     if (node.matches(".image-placeholder") || node.tagName === "IMG") {

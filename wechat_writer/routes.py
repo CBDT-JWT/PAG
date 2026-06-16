@@ -14,7 +14,6 @@ from PIL import Image, ImageOps
 from .agent import generate_title_and_question, iterate_article_markdown
 from .config import PUBLIC_DIR, RUNS_DIR
 from .files import public_base, public_url, safe_name
-from .formula_renderer import FormulaRenderer
 from .generation import build_generation_payload
 from .wechat_html import image_section, markdown_to_wechat_html
 
@@ -285,13 +284,11 @@ def register_routes(app):
             metadata["article_title"] = title_question.get("article_title") or metadata.get("article_title", "")
             metadata["reader_question"] = title_question.get("reader_question") or metadata.get("reader_question", "")
             assets = read_json_file(run_dir / "render_assets.json", {})
-            formula_renderer = FormulaRenderer(run_dir / "formula-assets")
             updated_html = markdown_to_wechat_html(
                 updated_markdown,
                 metadata=metadata,
                 head_url=assets.get("head_url", ""),
                 tail_url=assets.get("tail_url", ""),
-                formula_renderer=formula_renderer,
             )
             markdown_path.write_text(updated_markdown, encoding="utf-8")
             article_path = run_dir / "article.html"

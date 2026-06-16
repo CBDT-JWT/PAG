@@ -33,16 +33,12 @@ def render_inline_markdown(text, formula_renderer=None, allow_bold=True):
     text = text or ""
     parts = []
     last = 0
-    pattern = re.compile(r"(?<!\\)\$(?!\$)(.+?)(?<!\\)\$(?!\$)|\*\*(.+?)\*\*", flags=re.S)
+    pattern = re.compile(r"\*\*(.+?)\*\*", flags=re.S)
 
     for match in pattern.finditer(text):
         parts.append(f"<span>{escape_plain_text(text[last:match.start()])}</span>")
-        formula_text = match.group(1)
-        bold_text = match.group(2)
-        if formula_text is not None:
-            rendered = formula_renderer.render_inline(formula_text.strip()) if formula_renderer else escape_plain_text(formula_text)
-            parts.append(rendered)
-        elif allow_bold and bold_text is not None:
+        bold_text = match.group(1)
+        if allow_bold and bold_text is not None:
             parts.append(
                 '<strong style="color:rgb(67,117,185);box-sizing:border-box;">'
                 f"{render_inline_markdown(bold_text, formula_renderer=formula_renderer, allow_bold=False)}"
@@ -146,31 +142,6 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url="", f
 
         if not line:
             flush_paragraph()
-            index += 1
-            continue
-        if line == "$$":
-            flush_paragraph()
-            formula_lines = []
-            index += 1
-            while index < len(lines) and lines[index].strip() != "$$":
-                formula_lines.append(lines[index].rstrip())
-                index += 1
-            formula = "\n".join(formula_lines).strip()
-            if formula:
-                if formula_renderer:
-                    blocks.append(formula_renderer.render_block(formula))
-                else:
-                    blocks.append(paragraph_html(formula))
-            index += 1
-            continue
-        if line.startswith("$$") and line.endswith("$$") and len(line) > 4:
-            flush_paragraph()
-            formula = line[2:-2].strip()
-            if formula:
-                if formula_renderer:
-                    blocks.append(formula_renderer.render_block(formula))
-                else:
-                    blocks.append(paragraph_html(formula))
             index += 1
             continue
         if line == "[[HEAD_IMAGE]]":

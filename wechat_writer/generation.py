@@ -5,7 +5,6 @@ from pathlib import Path
 from .agent import emit_progress, extract_metadata, generate_article, generate_title_and_question
 from .config import ASSETS_DIR
 from .files import create_run, download_pdf, extract_pdf_text, public_url
-from .formula_renderer import FormulaRenderer
 from .wechat_html import fallback_article, markdown_to_wechat_html
 
 
@@ -71,13 +70,11 @@ def build_generation_payload(form, files, progress=None, base_url=""):
     }
     article_markdown = ai_data.get("article_markdown") or ""
     if article_markdown:
-        formula_renderer = FormulaRenderer(run_dir / "formula-assets")
         article_html = markdown_to_wechat_html(
             article_markdown,
             metadata=metadata,
             head_url=head_url,
             tail_url=tail_url,
-            formula_renderer=formula_renderer,
         )
     else:
         article_html = fallback_article(metadata, paper_text, head_url, tail_url)
