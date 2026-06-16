@@ -2,6 +2,8 @@
 
 把论文 URL 或 PDF 转成可直接粘贴到微信公众号后台的中文富文本。工具会下载/展示 PDF，调用 OpenAI 兼容接口生成论文解读文章，并支持在 PDF 上框选高清截图替换正文图片占位符。
 
+<img width="1512" height="836" alt="image" src="https://github.com/user-attachments/assets/74930148-472e-4b6b-acc8-3304cc6e500e" />
+
 ## 功能亮点
 
 - 三栏工作台：左侧输入与进度，中间 PDF，右侧微信富文本预览。
