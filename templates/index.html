@@ -158,7 +158,8 @@
       <div class="studio-body">
         <section class="studio-controls">
           <label>预设名称<input id="presetName" type="text" placeholder="例如：学术蓝卡片"></label>
-          <label>提示词风格<textarea id="presetPromptHint" rows="4" placeholder="告诉模型这套风格更像什么样的公众号文章"></textarea></label>
+          <label>正文行文 Prompt<textarea id="presetArticleStylePrompt" rows="12" placeholder="这里会直接替换 SYSTEM_PROMPT 中描述行文风格的部分"></textarea></label>
+          <label>标题/提问 Prompt<textarea id="presetTitleQuestionPrompt" rows="10" placeholder="这里会直接作为标题与结尾提问生成的系统提示词"></textarea></label>
           <div class="studio-grid">
             <label>主题主色<input id="presetPrimary" type="color"></label>
             <label>强调/卡片色<input id="presetSecondary" type="color"></label>

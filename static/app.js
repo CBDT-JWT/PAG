@@ -89,12 +89,69 @@ let currentPresetDraft = null;
 let presetUploadTarget = "head";
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
+const DEFAULT_ARTICLE_STYLE_PROMPT = `article_markdown 写作要求：
+1. 使用自然流畅的中文公众号文章风格，不要堆砌分点。但是，每个段落要稍微短一些。把长段文字切割，用更单独成段的句子来支撑全文。
+2. 文章开头必须放 [[HEAD_IMAGE]]。
+3. 论文信息部分只放一个占位符 [[PAPER_INFO]]，不要自己写论文标题、项目地址、论文地址列表。
+4. 正文图片使用 [[IMAGE:具体图片描述]] 占位，例如 [[IMAGE:Figure 2 nuReasoning 数据构建流程图]]。使用论文中存在的图。**图片描述里必须包含原文中的图片标题、图号或 caption 关键信息**，不要只写你自己的概括。
+5. 如果 tail_url 非空，文章末尾放 [[TAIL_IMAGE]]。
+6. 二级标题使用 Markdown 二级标题，例如：## 现有数据集的不足。**不能有三级标题。**所有节标题不要直接用“核心设计”、“亮点复现”、“总结与展望”这样的结构标题，用具体内容做标题，比如“DriveMA：让元动作可验证”、“简单接口的惊人潜力”。
+7. 重点强调使用 **加粗文本**。应当重点强调核心概念、工作缩写、核心词语等，而不是只在段落开始加。
+8. 不要输出 HTML。
+9. 总字数3k左右，**每个段落不能太长**，**严禁使用三级及以上标题！！！**
+10. 格式上，应当是一段leadingin-论文信息-一段话收束leadin-前序研究不足或现状-核心设计-具体实验-亮点重现-总结展望，leadingin部分不需要二级标题，其他需要。leadingin要有一点故事性。
+11. 不用“论文”做主语，可以用“研究团队”或者项目名称做句子主语，用更叙事感的语言讲论文的故事。
+12. **不要使用 LaTeX 公式、行内公式或块公式。** 即使论文里有公式，也请改写成自然语言解释，不要输出 \`$...$\`、\`$$...$$\`、\`\\begin\`、\`\\frac\` 这类公式写法。
+
+前言例子：
+> 自动驾驶系统已经能够完成很多标准驾驶任务。
+
+> 摄像头和 LiDAR 负责感知周围环境，检测模型识别车辆、行人、车道线和红绿灯，预测模块估计其他交通参与者的运动趋势，规划模块再生成未来几秒的驾驶轨迹。
+
+> 在正常道路上，这套流程已经相当成熟，但真实道路从来不只由标准场景组成。
+
+> 施工区域突然压缩车道，临停车辆挡住前方视野，行人从遮挡处走出，动物出现在路面上，紧急车辆正在靠近，交通标志临时变化，前方车辆突然减速，路口还同时存在红绿灯、斑马线和转向需求。
+
+> 这些情况不一定高频出现，却往往决定自动驾驶系统能否真正可靠。面对这些情况我们需要的是：
+
+> **推理。**
+
+> 在这类长尾场景里，模型只知道“看见了什么”远远不够。它还需要**理解目标之间的空间关系**，判断哪些对象真正影响驾驶，选择合适动作，并评估其他动作可能带来的后果。
+
+> 这篇来自 UCLA 和 Motional 的工作，提出了一个**面向长尾自动驾驶场景的推理数据集和基准**。`;
+const DEFAULT_TITLE_QUESTION_PROMPT = `你是资深中文科技公众号编辑。
+
+你会收到一篇已经写好的公众号文章 Markdown 正文。
+你的任务是额外生成标题候选和一个结尾提问：
+1. 多个有画面感、有趣、不像论文标题改写的推送标题。
+2. 一个放在文末向读者发问的问题。
+
+你必须只输出一个合法 JSON 对象。
+不要输出 Markdown 代码块。
+不要输出解释。
+
+JSON 字段必须为：
+{
+  "article_titles": ["标题1", "标题2", "标题3"],
+  "article_title": "最终默认展示标题",
+  "reader_question": "给读者的提问"
+}
+
+要求：
+1. 标题要像公众号推送标题，不要照抄论文标题，不要太像摘要，不要使用书名号。
+2. 标题要具体，有画面感，有一点张力，但不要低俗标题党。
+2.1 至少给 3 个标题候选，彼此要有区分度。
+3. 读者提问必须只有一句，适合放在文章结尾，能引发思考。
+4. 提问不要复述标题，要围绕文章核心观点、方法意义或行业趋势发问。
+5. \`article_title\` 必须从 \`article_titles\` 中选择一个最适合作为默认展示的标题。
+6. 不要输出空字段；如果信息不足，也要尽量给出自然的标题和提问。`;
 
 function fallbackPresetTemplate() {
   return {
     id: `preset-${Date.now()}`,
     name: "新预设",
-    prompt_hint: "",
+    article_style_prompt: DEFAULT_ARTICLE_STYLE_PROMPT,
+    title_question_prompt: DEFAULT_TITLE_QUESTION_PROMPT,
     colors: {
       primary: "#2d6cdf",
       secondary: "#8b6b4a",
@@ -131,13 +188,13 @@ function freshPresetDraft() {
   const draft = deepClone(presetTemplate || fallbackPresetTemplate());
   draft.id = newPresetId();
   draft.name = "新预设";
-  draft.prompt_hint = "";
   return draft;
 }
 
 const presetFields = {
   name: document.getElementById("presetName"),
-  prompt_hint: document.getElementById("presetPromptHint"),
+  article_style_prompt: document.getElementById("presetArticleStylePrompt"),
+  title_question_prompt: document.getElementById("presetTitleQuestionPrompt"),
   primary: document.getElementById("presetPrimary"),
   secondary: document.getElementById("presetSecondary"),
   text: document.getElementById("presetText"),
@@ -328,7 +385,8 @@ function fillPresetForm(preset) {
   const value = preset || presetTemplate;
   if (!value) return;
   presetFields.name.value = value.name || "";
-  presetFields.prompt_hint.value = value.prompt_hint || "";
+  presetFields.article_style_prompt.value = value.article_style_prompt || "";
+  presetFields.title_question_prompt.value = value.title_question_prompt || "";
   presetFields.primary.value = value.colors?.primary || "#2d6cdf";
   presetFields.secondary.value = value.colors?.secondary || "#8b6b4a";
   presetFields.text.value = value.colors?.text || "#2a2f36";
@@ -353,7 +411,8 @@ function collectPresetForm() {
   return {
     id: currentPresetDraft?.id || presetTemplate?.id,
     name: presetFields.name.value.trim() || "未命名预设",
-    prompt_hint: presetFields.prompt_hint.value.trim(),
+    article_style_prompt: presetFields.article_style_prompt.value.trim(),
+    title_question_prompt: presetFields.title_question_prompt.value.trim(),
     colors: {
       primary: presetFields.primary.value,
       secondary: presetFields.secondary.value,

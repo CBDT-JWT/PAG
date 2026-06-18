@@ -4,6 +4,7 @@ import uuid
 from copy import deepcopy
 from pathlib import Path
 
+from .agent import DEFAULT_ARTICLE_STYLE_PROMPT, TITLE_QUESTION_PROMPT
 from .config import ASSETS_DIR, PRESET_ASSETS_DIR, PRESETS_DIR, PRESETS_FILE
 from .files import public_url, safe_name
 
@@ -16,7 +17,8 @@ def default_theme_preset():
     return {
         "id": DEFAULT_PRESET_ID,
         "name": "默认科技蓝",
-        "prompt_hint": "整体气质偏冷静、专业、清晰，像一篇成熟的科技公众号解读。",
+        "article_style_prompt": DEFAULT_ARTICLE_STYLE_PROMPT.strip(),
+        "title_question_prompt": TITLE_QUESTION_PROMPT.strip(),
         "colors": {
             "primary": "#2d6cdf",
             "secondary": "#8b6b4a",
@@ -130,6 +132,10 @@ def normalize_preset(preset):
     merged.update({k: v for k, v in (preset or {}).items() if k not in {"colors", "images", "render"}})
     for section in ("colors", "images", "render"):
         merged[section].update((preset or {}).get(section) or {})
+    if not merged.get("article_style_prompt"):
+        merged["article_style_prompt"] = DEFAULT_ARTICLE_STYLE_PROMPT.strip()
+    if not merged.get("title_question_prompt"):
+        merged["title_question_prompt"] = TITLE_QUESTION_PROMPT.strip()
     if not merged.get("id"):
         merged["id"] = "preset-" + uuid.uuid4().hex[:8]
     return merged
@@ -161,7 +167,6 @@ def create_empty_preset():
     preset = default_theme_preset()
     preset["id"] = "preset-" + uuid.uuid4().hex[:8]
     preset["name"] = "新预设"
-    preset["prompt_hint"] = ""
     preset["images"]["tail_url"] = ""
     return preset
 

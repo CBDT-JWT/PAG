@@ -355,6 +355,7 @@ def register_routes(app):
             title_question = generate_title_and_question(
                 updated_markdown,
                 paper_title=metadata.get("paper_title", ""),
+                prompt_override=get_preset(metadata.get("preset_id", "")).get("title_question_prompt", ""),
             )
             metadata["article_titles"] = title_question.get("article_titles") or metadata.get("article_titles", [])
             metadata["article_title"] = title_question.get("article_title") or metadata.get("article_title", "")

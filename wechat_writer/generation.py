@@ -50,7 +50,7 @@ def build_generation_payload(form, files, progress=None, base_url=""):
         focus_authors,
         head_url,
         tail_url,
-        preset_prompt=preset.get("prompt_hint", ""),
+        article_style_prompt=preset.get("article_style_prompt", ""),
         progress=progress,
     )
     early_metadata = extract_metadata(ai_data, paper_url=display_paper_url)
@@ -58,6 +58,7 @@ def build_generation_payload(form, files, progress=None, base_url=""):
     title_question = generate_title_and_question(
         ai_data.get("article_markdown", ""),
         paper_title=ai_data.get("paper_title", ""),
+        prompt_override=preset.get("title_question_prompt", ""),
         progress=progress,
     )
     metadata = {

@@ -10,7 +10,7 @@ from .http_client import http_get, http_json, http_json_stream
 from .wechat_html import fallback_article, markdown_to_wechat_html
 
 
-SYSTEM_PROMPT = """
+SYSTEM_PROMPT_PREFIX = """
 你是资深中文科技公众号作者和论文解读编辑。
 
 你必须只输出一个合法 JSON 对象。
@@ -28,7 +28,9 @@ JSON 字段必须为：
   "paper_url": "论文地址",
   "article_markdown": "公众号文章 Markdown 正文"
 }
+"""
 
+DEFAULT_ARTICLE_STYLE_PROMPT = """
 article_markdown 写作要求：
 1. 使用自然流畅的中文公众号文章风格，不要堆砌分点。但是，每个段落要稍微短一些。把长段文字切割，用更单独成段的句子来支撑全文。
 2. 文章开头必须放 [[HEAD_IMAGE]]。
@@ -89,6 +91,11 @@ JSON 字段必须为：
 5. `article_title` 必须从 `article_titles` 中选择一个最适合作为默认展示的标题。
 6. 不要输出空字段；如果信息不足，也要尽量给出自然的标题和提问。
 """
+
+
+def build_system_prompt(article_style_prompt=""):
+    style_prompt = (article_style_prompt or "").strip() or DEFAULT_ARTICLE_STYLE_PROMPT.strip()
+    return SYSTEM_PROMPT_PREFIX.strip() + "\n\n" + style_prompt
 
 TOOLS = [
     {"type": "function", "function": {"name": "web_search", "description": "Search web pages for paper metadata, project pages, GitHub repositories, and related works.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
@@ -350,7 +357,7 @@ def get_article_markdown(parsed):
     return ""
 
 
-def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, preset_prompt="", progress=None):
+def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, article_style_prompt="", progress=None):
     data = {
         "paper_title": "",
         "project_url": "",
@@ -368,14 +375,13 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         paper_text = "本地未安装 pdftotext，需结合论文 URL 和联网检索理解论文。"
 
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": build_system_prompt(article_style_prompt)},
         {
             "role": "user",
             "content": f"""论文地址：{paper_url}
 头图 URL：{head_url}
 尾图 URL：{tail_url}
 重点关注作者：{focus_authors or '无'}
-主题预设提示：{preset_prompt or '无'}
 预搜索结果：{seed_search}
 
 论文文本：
@@ -482,12 +488,12 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
         return data
 
 
-def generate_title_and_question(article_markdown, paper_title="", progress=None):
+def generate_title_and_question(article_markdown, paper_title="", prompt_override="", progress=None):
     if not (article_markdown or "").strip():
         return {"article_titles": [], "article_title": "", "reader_question": ""}
 
     messages = [
-        {"role": "system", "content": TITLE_QUESTION_PROMPT},
+        {"role": "system", "content": (prompt_override or "").strip() or TITLE_QUESTION_PROMPT},
         {
             "role": "user",
             "content": f"""论文标题：{paper_title or "无"}
