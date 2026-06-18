@@ -90,6 +90,39 @@ let presetUploadTarget = "head";
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
+function fallbackPresetTemplate() {
+  return {
+    id: `preset-${Date.now()}`,
+    name: "新预设",
+    prompt_hint: "",
+    colors: {
+      primary: "#2d6cdf",
+      secondary: "#8b6b4a",
+      text: "#2a2f36",
+      surface: "#ffffff",
+      heading_bg: "#edf3ff",
+      heading_text: "#2d6cdf",
+      bold: "#2d6cdf",
+      left_line: "#2d6cdf",
+      paper_info_bg: "#f7f3eb"
+    },
+    images: {
+      head_url: "",
+      tail_url: ""
+    },
+    render: {
+      body_align: "justify",
+      heading_align: "center",
+      heading_style: "card",
+      paper_info_style: "card",
+      body_font_size: 14,
+      heading_font_size: 16,
+      line_height: 26,
+      show_heading_shadow: false
+    }
+  };
+}
+
 const presetFields = {
   name: document.getElementById("presetName"),
   prompt_hint: document.getElementById("presetPromptHint"),
@@ -195,7 +228,10 @@ async function loadPresets() {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "预设加载失败");
   presets = data.presets || [];
-  presetTemplate = data.template || null;
+  presetTemplate = data.template || fallbackPresetTemplate();
+  if (!presets.length && presetTemplate) {
+    presets = [deepClone(presetTemplate)];
+  }
   populatePresetSelect();
 }
 
@@ -270,9 +306,11 @@ async function refreshPresetPreviewHtml() {
 }
 
 async function openPresetStudio(mode) {
-  currentPresetDraft = mode === "new" ? deepClone(presetTemplate) : deepClone(currentPreset());
+  const template = presetTemplate || fallbackPresetTemplate();
+  const existing = currentPreset();
+  currentPresetDraft = mode === "new" ? deepClone(template) : deepClone(existing || template);
   if (!currentPresetDraft) return;
-  studioTitle.textContent = mode === "new" ? "新建主题预设" : `修改预设：${currentPresetDraft.name}`;
+  studioTitle.textContent = mode === "new" || !existing ? "新建主题预设" : `修改预设：${currentPresetDraft.name}`;
   fillPresetForm(currentPresetDraft);
   presetStudio.hidden = false;
   await refreshPresetPreviewHtml();
@@ -807,7 +845,12 @@ function downscaleCanvas(canvas, maxSide) {
 form.addEventListener("change", syncSourceMode);
 syncSourceMode();
 loadHistory().catch(() => {});
-loadPresets().catch((error) => setStatus(error.message));
+loadPresets().catch((error) => {
+  presetTemplate = fallbackPresetTemplate();
+  presets = [deepClone(presetTemplate)];
+  populatePresetSelect();
+  setStatus(error.message || "预设加载失败，已使用本地默认模板");
+});
 
 dialogCancel.addEventListener("click", () => closeDialog(false));
 dialogConfirm.addEventListener("click", () => closeDialog(true));
