@@ -179,6 +179,8 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url="", t
     lines = markdown_text.splitlines()
     body_conf = body_style(theme)
     surface = theme_value(theme, "colors", "surface", "#ffffff")
+    saw_head_image = False
+    saw_tail_image = False
 
     def flush_paragraph():
         nonlocal paragraph_buffer
@@ -201,12 +203,14 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url="", t
             flush_paragraph()
             if head_url:
                 blocks.append(image_section(head_url))
+                saw_head_image = True
             index += 1
             continue
         if line == "[[TAIL_IMAGE]]":
             flush_paragraph()
             if tail_url:
                 blocks.append(image_section(tail_url))
+                saw_tail_image = True
             index += 1
             continue
         if line == "[[PAPER_INFO]]":
@@ -257,9 +261,13 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url="", t
         index += 1
 
     flush_paragraph()
+    if head_url and not saw_head_image:
+        blocks.insert(0, image_section(head_url))
     question_section = reader_question_section(metadata.get("reader_question", ""), theme=theme, formula_renderer=formula_renderer)
     if question_section:
         blocks.append(question_section)
+    if tail_url and not saw_tail_image:
+        blocks.append(image_section(tail_url))
     body_html = (
         '<section style="margin:20px 0 0;box-sizing:border-box;">'
         f'<section style="font-size:{body_conf["font_size"]};line-height:{body_conf["line_height"]};padding:0;box-sizing:border-box;">'

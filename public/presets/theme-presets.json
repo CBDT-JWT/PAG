@@ -1,0 +1,36 @@
+{
+  "presets": [
+    {
+      "id": "default-journal",
+      "name": "默认科技蓝",
+      "prompt_hint": "整体气质偏冷静、专业、清晰，像一篇成熟的科技公众号解读。",
+      "colors": {
+        "primary": "#2d6cdf",
+        "secondary": "#8b6b4a",
+        "text": "#2a2f36",
+        "muted": "#6b7280",
+        "surface": "#ffffff",
+        "paper_info_bg": "#f7f3eb",
+        "heading_bg": "#edf3ff",
+        "heading_text": "#2d6cdf",
+        "bold": "#2d6cdf",
+        "left_line": "#2d6cdf"
+      },
+      "images": {
+        "head_url": "/public/presets/assets/head-1781776362-2d58d8.png",
+        "tail_url": ""
+      },
+      "render": {
+        "body_align": "justify",
+        "body_font_size": 14,
+        "heading_align": "center",
+        "heading_font_size": 16,
+        "heading_style": "card",
+        "paper_info_style": "card",
+        "show_heading_shadow": false,
+        "line_height": 26
+      },
+      "updated_at": 1781776388
+    }
+  ]
+}
