@@ -186,6 +186,83 @@ function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function buildLocalPresetPreview(preset) {
+  const colors = preset?.colors || {};
+  const render = preset?.render || {};
+  const headUrl = preset?.images?.head_url || "";
+  const tailUrl = preset?.images?.tail_url || "";
+  const bodyAlign = render.body_align || "justify";
+  const headingAlign = render.heading_align || "center";
+  const headingStyle = render.heading_style || "card";
+  const paperInfoStyle = render.paper_info_style || "card";
+  const bodyFontSize = Number(render.body_font_size) || 14;
+  const headingFontSize = Number(render.heading_font_size) || 16;
+  const lineHeight = Number(render.line_height) || 26;
+  const textColor = colors.text || "#2a2f36";
+  const primary = colors.primary || "#2d6cdf";
+  const secondary = colors.secondary || "#8b6b4a";
+  const surface = colors.surface || "#ffffff";
+  const headingBg = colors.heading_bg || "#edf3ff";
+  const headingText = colors.heading_text || primary;
+  const boldColor = colors.bold || primary;
+  const leftLine = colors.left_line || primary;
+  const paperInfoBg = colors.paper_info_bg || "#f7f3eb";
+  const baseTextStyle = `margin:0 10px 12px 10px;font-size:${bodyFontSize}px;line-height:${lineHeight}px;text-align:${bodyAlign};letter-spacing:.3px;color:${textColor};`;
+
+  const headBlock = headUrl
+    ? `<section style="text-align:center;margin:0 10px 12px 10px;"><img src="${headUrl}" style="display:block;margin:0 auto;max-width:90%;width:90%;height:auto;"></section>`
+    : `<button class="image-placeholder" type="button">[示例头图占位]</button>`;
+
+  const tailBlock = tailUrl
+    ? `<section style="text-align:center;margin:18px 10px 0 10px;"><img src="${tailUrl}" style="display:block;margin:0 auto;max-width:90%;width:90%;height:auto;"></section>`
+    : `<button class="image-placeholder" type="button">[示例尾图占位]</button>`;
+
+  const headingBlock = (() => {
+    const title = "标题样式会改变阅读节奏";
+    if (headingStyle === "left-line") {
+      return `<section style="margin:0 10px 12px 10px;"><p style="margin:0;padding-left:12px;border-left:4px solid ${leftLine};font-size:${headingFontSize}px;line-height:${lineHeight}px;text-align:${headingAlign};color:${headingText};font-weight:700;">${title}</p></section>`;
+    }
+    if (headingStyle === "plain") {
+      return `<p style="margin:0 10px 12px 10px;font-size:${headingFontSize}px;line-height:${lineHeight}px;text-align:${headingAlign};color:${headingText};font-weight:700;">${title}</p>`;
+    }
+    return `<section style="margin:0 10px 12px 10px;"><p style="margin:0;padding:8px 14px;border-radius:12px;background:${headingBg};font-size:${headingFontSize}px;line-height:${lineHeight}px;text-align:${headingAlign};color:${headingText};font-weight:700;">${title}</p></section>`;
+  })();
+
+  const paperInfoBlock = (() => {
+    const list = `
+      <ul style="margin:0;padding-left:20px;list-style:disc;">
+        <li style="margin-bottom:8px;"><strong>论文标题</strong><br>PreviewMA: Theme Presets for WeChat Articles</li>
+        <li style="margin-bottom:8px;"><strong>项目地址</strong><br>https://example.com/project</li>
+        <li><strong>论文地址</strong><br>https://arxiv.org/abs/2501.01234</li>
+      </ul>
+    `;
+    if (paperInfoStyle === "list") {
+      return `<section style="margin:0 10px 12px 10px;color:${secondary};font-size:${bodyFontSize}px;line-height:${lineHeight}px;">${list}</section>`;
+    }
+    return `<section style="margin:0 10px 12px 10px;padding:12px 10px;border-radius:12px;background:${paperInfoBg};color:${secondary};font-size:${bodyFontSize}px;line-height:${lineHeight}px;">${list}</section>`;
+  })();
+
+  return `
+    <div class="rich_media_content js_underline_content defaultNoSetting">
+      <section style="background:${surface};padding-top:4px;">
+        ${headBlock}
+        <p style="${baseTextStyle}">写公众号文章时，版式并不只是“把字摆上去”。一套稳定的 <strong style="color:${boldColor};">主题预设</strong>，会决定这篇内容看起来更像实验记录、像研究笔记，还是像成熟的科技媒体解读。</p>
+        ${paperInfoBlock}
+        <p style="${baseTextStyle}">预设不仅影响颜色，也会影响标题的节奏、强调信息的方式，以及读者第一眼看到内容时的心理预期。</p>
+        ${headingBlock}
+        <p style="${baseTextStyle}">如果标题更像卡片，读者会更容易把每一节当成一个明确段落来吸收。如果标题是左侧竖线或纯文字，整篇文章会更克制，也更像连续叙事。</p>
+        <button class="image-placeholder" type="button">[示例配图 Figure 3 系统结构图]</button>
+        <p style="${baseTextStyle}">同一句话里，<strong style="color:${boldColor};">重点术语</strong>、<strong style="color:${boldColor};">模型名称</strong>、<strong style="color:${boldColor};">实验结论</strong> 的强调方式不同，读者的视线落点也会不同。</p>
+        <section style="margin:28px 10px 0 10px;padding:16px 14px;border-radius:12px;background:${paperInfoBg};">
+          <p style="margin:0 0 8px 0;font-size:13px;line-height:22px;color:${secondary};font-weight:700;">留给读者的问题</p>
+          <p style="margin:0;font-size:${bodyFontSize}px;line-height:${lineHeight}px;text-align:${bodyAlign};color:${textColor};">如果你经常发布技术内容，你会更偏好强风格主题，还是尽量让样式退到内容背后？</p>
+        </section>
+        ${tailBlock}
+      </section>
+    </div>
+  `;
+}
+
 function applyGenerateResult(data) {
   console.log("data =", data);
   console.log("article_html length =", data.article_html?.length);
@@ -295,14 +372,20 @@ function collectPresetForm() {
 
 async function refreshPresetPreviewHtml() {
   currentPresetDraft = collectPresetForm();
-  const response = await fetch("/api/presets/preview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(currentPresetDraft)
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "预设预览失败");
-  presetPreview.innerHTML = renderPlaceholders(data.html || "");
+  try {
+    const response = await fetch("/api/presets/preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(currentPresetDraft)
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "预设预览失败");
+    const html = data.html || "";
+    presetPreview.innerHTML = html ? renderPlaceholders(html) : buildLocalPresetPreview(currentPresetDraft);
+  } catch (error) {
+    presetPreview.innerHTML = buildLocalPresetPreview(currentPresetDraft);
+    setStatus(error.message || "预设预览失败，已切换到本地示例预览");
+  }
 }
 
 async function openPresetStudio(mode) {
