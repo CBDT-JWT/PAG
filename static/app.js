@@ -418,6 +418,22 @@ async function savePresetFromStudio() {
   }
 }
 
+async function persistCurrentPresetDraft() {
+  if (!currentPresetDraft?.id) return null;
+  const body = collectPresetForm();
+  const response = await fetch("/api/presets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "预设自动保存失败");
+  currentPresetDraft = data.preset || body;
+  await loadPresets();
+  presetSelect.value = currentPresetDraft.id || presetSelect.value;
+  return currentPresetDraft;
+}
+
 async function uploadPresetImage(kind) {
   presetUploadTarget = kind;
   presetImageInput.click();
@@ -968,7 +984,13 @@ presetImageInput.addEventListener("change", async () => {
     if (!response.ok) throw new Error(data.error || "预设图片上传失败");
     if (presetUploadTarget === "head") presetFields.head_url.value = data.url || "";
     if (presetUploadTarget === "tail") presetFields.tail_url.value = data.url || "";
+    currentPresetDraft = collectPresetForm();
+    await persistCurrentPresetDraft();
     await refreshPresetPreviewHtml();
+    if (runId && presetSelect.value) {
+      await applyPresetToRun(presetSelect.value);
+    }
+    setStatus(presetUploadTarget === "head" ? "文首图已上传并保存到当前预设" : "文末图已上传并保存到当前预设");
   } catch (error) {
     setStatus(error.message || "预设图片上传失败");
   } finally {
