@@ -15,6 +15,7 @@ from .agent import generate_title_and_question, iterate_article_markdown
 from .config import PUBLIC_DIR, RUNS_DIR
 from .files import public_base, public_url, safe_name
 from .generation import build_generation_payload
+from .theme_presets import create_empty_preset, get_preset, load_presets, normalize_preset, preview_markdown, preview_metadata, save_preset_asset, upsert_preset
 from .wechat_html import image_section, markdown_to_wechat_html
 
 MAX_SCREENSHOT_BYTES = 250 * 1024
@@ -103,6 +104,45 @@ def register_routes(app):
         if not run_dir.exists():
             return jsonify({"error": "项目目录不存在"}), 404
         return jsonify(run_payload(run_dir))
+
+    @app.get("/api/presets")
+    def api_presets():
+        return jsonify({"presets": load_presets(), "template": create_empty_preset()})
+
+    @app.post("/api/presets")
+    def api_save_preset():
+        try:
+            data = request.get_json(force=True)
+            preset = upsert_preset(data or {})
+            return jsonify({"preset": preset, "presets": load_presets()})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+    @app.post("/api/presets/assets")
+    def api_preset_asset():
+        try:
+            upload = request.files.get("image")
+            prefix = request.form.get("prefix", "preset")
+            if not upload or not upload.filename:
+                return jsonify({"error": "请选择图片"}), 400
+            return jsonify({"url": save_preset_asset(upload, prefix=prefix)})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
+    @app.post("/api/presets/preview")
+    def api_preset_preview():
+        try:
+            theme = normalize_preset(request.get_json(force=True) or {})
+            html = markdown_to_wechat_html(
+                preview_markdown(),
+                metadata=preview_metadata(),
+                head_url=((theme.get("images") or {}).get("head_url", "")),
+                tail_url=((theme.get("images") or {}).get("tail_url", "")),
+                theme=theme,
+            )
+            return jsonify({"html": html})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
 
     @app.post("/api/generate")
     def api_generate():
@@ -258,6 +298,38 @@ def register_routes(app):
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
+    @app.post("/api/runs/<run_id>/preset")
+    def api_apply_preset(run_id):
+        try:
+            run_dir = RUNS_DIR / safe_name(run_id)
+            if not run_dir.exists():
+                return jsonify({"error": "项目目录不存在"}), 404
+            data = request.get_json(force=True)
+            preset = get_preset((data or {}).get("preset_id", ""))
+            metadata = read_json_file(run_dir / "metadata.json", {})
+            metadata["preset_id"] = preset.get("id")
+            metadata["preset_name"] = preset.get("name")
+            markdown_path = run_dir / "article.md"
+            article_markdown = markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else ""
+            assets = {
+                "head_url": (preset.get("images") or {}).get("head_url", ""),
+                "tail_url": (preset.get("images") or {}).get("tail_url", ""),
+                "preset_id": preset.get("id"),
+            }
+            updated_html = markdown_to_wechat_html(
+                article_markdown,
+                metadata=metadata,
+                head_url=assets["head_url"],
+                tail_url=assets["tail_url"],
+                theme=preset,
+            )
+            (run_dir / "article.html").write_text(updated_html, encoding="utf-8")
+            (run_dir / "metadata.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+            (run_dir / "render_assets.json").write_text(json.dumps(assets, ensure_ascii=False, indent=2), encoding="utf-8")
+            return jsonify({"article_html": updated_html, "article_markdown": article_markdown, "metadata": metadata})
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
     @app.post("/api/runs/<run_id>/iterate")
     def api_iterate(run_id):
         try:
@@ -289,6 +361,7 @@ def register_routes(app):
                 metadata=metadata,
                 head_url=assets.get("head_url", ""),
                 tail_url=assets.get("tail_url", ""),
+                theme=get_preset(metadata.get("preset_id", assets.get("preset_id", ""))),
             )
             markdown_path.write_text(updated_markdown, encoding="utf-8")
             article_path = run_dir / "article.html"

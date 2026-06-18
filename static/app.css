@@ -122,7 +122,7 @@ button.primary:hover:not(:disabled) {
   border-bottom: 1px solid var(--line);
 }
 
-.source-tabs, .file-row {
+.source-tabs, .file-row, .preset-row {
   display: flex;
   gap: 14px;
   align-items: center;
@@ -151,6 +151,16 @@ input[type="url"], textarea {
 .file-row label {
   color: var(--muted);
   font-size: 13px;
+}
+
+.preset-row select {
+  flex: 1 1 180px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--text);
 }
 
 .progress-panel {
@@ -559,6 +569,118 @@ input[type="url"], textarea {
   gap: 8px;
 }
 
+.studio-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: stretch;
+  background: rgba(15, 23, 42, .58);
+}
+
+.studio-modal[hidden] {
+  display: none;
+}
+
+.studio-shell {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: #f5f7fb;
+}
+
+.studio-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+
+.studio-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.studio-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 1px;
+  background: var(--line);
+}
+
+.studio-controls,
+.studio-preview-panel {
+  min-height: 0;
+  background: #fff;
+}
+
+.studio-controls {
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 16px;
+}
+
+.studio-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.studio-controls input[type="text"],
+.studio-controls textarea,
+.studio-controls select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #fff;
+  color: var(--text);
+}
+
+.studio-controls input[type="range"] {
+  width: 100%;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.studio-images {
+  align-items: end;
+}
+
+.studio-images button {
+  height: 40px;
+}
+
+.studio-preview-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.studio-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.studio-preview {
+  margin-top: 0;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     height: auto;
@@ -579,5 +701,9 @@ input[type="url"], textarea {
 
   .right-pane {
     min-height: 700px;
+  }
+
+  .studio-body {
+    grid-template-columns: 1fr;
   }
 }

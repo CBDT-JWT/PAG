@@ -37,6 +37,18 @@ const dialogTitle = document.getElementById("dialogTitle");
 const dialogMessage = document.getElementById("dialogMessage");
 const dialogCancel = document.getElementById("dialogCancel");
 const dialogConfirm = document.getElementById("dialogConfirm");
+const presetSelect = document.getElementById("presetSelect");
+const newPresetBtn = document.getElementById("newPresetBtn");
+const editPresetBtn = document.getElementById("editPresetBtn");
+const presetStudio = document.getElementById("presetStudio");
+const studioTitle = document.getElementById("studioTitle");
+const studioCancel = document.getElementById("studioCancel");
+const studioSave = document.getElementById("studioSave");
+const presetPreview = document.getElementById("presetPreview");
+const refreshPresetPreview = document.getElementById("refreshPresetPreview");
+const presetImageInput = document.getElementById("presetImageInput");
+const uploadHeadImageBtn = document.getElementById("uploadHeadImageBtn");
+const uploadTailImageBtn = document.getElementById("uploadTailImageBtn");
 
 // const generateBtn = document.getElementById("generateBtn");
 // const statusLine = document.getElementById("statusLine");
@@ -71,8 +83,35 @@ let syncing = false;
 let syncPending = false;
 let hasSuccessfulGeneration = false;
 let dialogResolver = null;
+let presets = [];
+let presetTemplate = null;
+let currentPresetDraft = null;
+let presetUploadTarget = "head";
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
+
+const presetFields = {
+  name: document.getElementById("presetName"),
+  prompt_hint: document.getElementById("presetPromptHint"),
+  primary: document.getElementById("presetPrimary"),
+  secondary: document.getElementById("presetSecondary"),
+  text: document.getElementById("presetText"),
+  surface: document.getElementById("presetSurface"),
+  heading_bg: document.getElementById("presetHeadingBg"),
+  heading_text: document.getElementById("presetHeadingText"),
+  bold: document.getElementById("presetBold"),
+  left_line: document.getElementById("presetLeftLine"),
+  paper_info_bg: document.getElementById("presetPaperInfoBg"),
+  body_align: document.getElementById("presetBodyAlign"),
+  heading_align: document.getElementById("presetHeadingAlign"),
+  heading_style: document.getElementById("presetHeadingStyle"),
+  paper_info_style: document.getElementById("presetPaperInfoStyle"),
+  body_font_size: document.getElementById("presetBodyFontSize"),
+  heading_font_size: document.getElementById("presetHeadingFontSize"),
+  line_height: document.getElementById("presetLineHeight"),
+  head_url: document.getElementById("presetHeadUrl"),
+  tail_url: document.getElementById("presetTailUrl")
+};
 
 async function loadPdfJs() {
   if (pdfjsLib) return pdfjsLib;
@@ -110,6 +149,10 @@ function normalizePublicUrls(value) {
   return (value || "").replace(/https?:\/\/[^"'()\s]+\/public\//g, "/public/");
 }
 
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 function applyGenerateResult(data) {
   console.log("data =", data);
   console.log("article_html length =", data.article_html?.length);
@@ -120,12 +163,160 @@ function applyGenerateResult(data) {
   articleHtml = normalizePublicUrls(data.article_html);
   articleMarkdown = normalizePublicUrls(data.article_markdown);
   setMeta(data.metadata || {});
+  if (data.metadata?.preset_id) presetSelect.value = data.metadata.preset_id;
   copySource.innerHTML = renderPlaceholders(articleHtml);
   copyBtn.disabled = false;
   iterateBtn.disabled = false;
   hasSuccessfulGeneration = true;
   generateBtn.textContent = "重新生成";
   copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
+}
+
+function currentPreset() {
+  return presets.find((preset) => preset.id === presetSelect.value) || presets[0] || null;
+}
+
+function populatePresetSelect() {
+  const selected = presetSelect.value;
+  presetSelect.innerHTML = "";
+  for (const preset of presets) {
+    const option = document.createElement("option");
+    option.value = preset.id;
+    option.textContent = preset.name;
+    presetSelect.appendChild(option);
+  }
+  presetSelect.value = selected && presets.some((preset) => preset.id === selected)
+    ? selected
+    : (presets[0]?.id || "");
+}
+
+async function loadPresets() {
+  const response = await fetch("/api/presets");
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "预设加载失败");
+  presets = data.presets || [];
+  presetTemplate = data.template || null;
+  populatePresetSelect();
+}
+
+function fillPresetForm(preset) {
+  const value = preset || presetTemplate;
+  if (!value) return;
+  presetFields.name.value = value.name || "";
+  presetFields.prompt_hint.value = value.prompt_hint || "";
+  presetFields.primary.value = value.colors?.primary || "#2d6cdf";
+  presetFields.secondary.value = value.colors?.secondary || "#8b6b4a";
+  presetFields.text.value = value.colors?.text || "#2a2f36";
+  presetFields.surface.value = value.colors?.surface || "#ffffff";
+  presetFields.heading_bg.value = value.colors?.heading_bg || "#edf3ff";
+  presetFields.heading_text.value = value.colors?.heading_text || "#2d6cdf";
+  presetFields.bold.value = value.colors?.bold || "#2d6cdf";
+  presetFields.left_line.value = value.colors?.left_line || "#2d6cdf";
+  presetFields.paper_info_bg.value = value.colors?.paper_info_bg || "#f7f3eb";
+  presetFields.body_align.value = value.render?.body_align || "justify";
+  presetFields.heading_align.value = value.render?.heading_align || "center";
+  presetFields.heading_style.value = value.render?.heading_style || "card";
+  presetFields.paper_info_style.value = value.render?.paper_info_style || "card";
+  presetFields.body_font_size.value = String(value.render?.body_font_size || 14);
+  presetFields.heading_font_size.value = String(value.render?.heading_font_size || 16);
+  presetFields.line_height.value = String(value.render?.line_height || 26);
+  presetFields.head_url.value = value.images?.head_url || "";
+  presetFields.tail_url.value = value.images?.tail_url || "";
+}
+
+function collectPresetForm() {
+  return {
+    id: currentPresetDraft?.id || presetTemplate?.id,
+    name: presetFields.name.value.trim() || "未命名预设",
+    prompt_hint: presetFields.prompt_hint.value.trim(),
+    colors: {
+      primary: presetFields.primary.value,
+      secondary: presetFields.secondary.value,
+      text: presetFields.text.value,
+      surface: presetFields.surface.value,
+      heading_bg: presetFields.heading_bg.value,
+      heading_text: presetFields.heading_text.value,
+      bold: presetFields.bold.value,
+      left_line: presetFields.left_line.value,
+      paper_info_bg: presetFields.paper_info_bg.value
+    },
+    images: {
+      head_url: presetFields.head_url.value.trim(),
+      tail_url: presetFields.tail_url.value.trim()
+    },
+    render: {
+      body_align: presetFields.body_align.value,
+      heading_align: presetFields.heading_align.value,
+      heading_style: presetFields.heading_style.value,
+      paper_info_style: presetFields.paper_info_style.value,
+      body_font_size: Number(presetFields.body_font_size.value) || 14,
+      heading_font_size: Number(presetFields.heading_font_size.value) || 16,
+      line_height: Number(presetFields.line_height.value) || 26,
+      show_heading_shadow: false
+    }
+  };
+}
+
+async function refreshPresetPreviewHtml() {
+  currentPresetDraft = collectPresetForm();
+  const response = await fetch("/api/presets/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(currentPresetDraft)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "预设预览失败");
+  presetPreview.innerHTML = renderPlaceholders(data.html || "");
+}
+
+async function openPresetStudio(mode) {
+  currentPresetDraft = mode === "new" ? deepClone(presetTemplate) : deepClone(currentPreset());
+  if (!currentPresetDraft) return;
+  studioTitle.textContent = mode === "new" ? "新建主题预设" : `修改预设：${currentPresetDraft.name}`;
+  fillPresetForm(currentPresetDraft);
+  presetStudio.hidden = false;
+  await refreshPresetPreviewHtml();
+}
+
+async function savePresetFromStudio() {
+  const body = collectPresetForm();
+  const response = await fetch("/api/presets", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "预设保存失败");
+  const savedId = data.preset?.id || body.id;
+  await loadPresets();
+  presetSelect.value = savedId || presetSelect.value;
+  presetStudio.hidden = true;
+  setStatus(`预设已保存：${data.preset?.name || body.name}`);
+  if (runId) {
+    await applyPresetToRun(savedId);
+  }
+}
+
+async function uploadPresetImage(kind) {
+  presetUploadTarget = kind;
+  presetImageInput.click();
+}
+
+async function applyPresetToRun(presetId) {
+  if (!runId || !presetId) return;
+  const response = await fetch(`/api/runs/${runId}/preset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ preset_id: presetId })
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || "切换预设失败");
+  articleHtml = data.article_html || articleHtml;
+  articleMarkdown = data.article_markdown || articleMarkdown;
+  if (data.metadata) setMeta(data.metadata);
+  copySource.innerHTML = renderPlaceholders(articleHtml);
+  copyStatus.textContent = "已切换主题预设";
+  setStatus(`已切换预设：${data.metadata?.preset_name || presetId}`);
 }
 
 function openDialog({ title = "提示", message = "", confirmText = "确定", cancelText = "取消", hideCancel = false }) {
@@ -616,6 +807,7 @@ function downscaleCanvas(canvas, maxSide) {
 form.addEventListener("change", syncSourceMode);
 syncSourceMode();
 loadHistory().catch(() => {});
+loadPresets().catch((error) => setStatus(error.message));
 
 dialogCancel.addEventListener("click", () => closeDialog(false));
 dialogConfirm.addEventListener("click", () => closeDialog(true));
@@ -624,6 +816,47 @@ dialogModal.addEventListener("click", (event) => {
 });
 
 refreshHistory.addEventListener("click", () => loadHistory().catch((error) => setStatus(error.message)));
+newPresetBtn.addEventListener("click", () => openPresetStudio("new").catch((error) => setStatus(error.message)));
+editPresetBtn.addEventListener("click", () => openPresetStudio("edit").catch((error) => setStatus(error.message)));
+studioCancel.addEventListener("click", () => {
+  presetStudio.hidden = true;
+});
+studioSave.addEventListener("click", () => savePresetFromStudio().catch((error) => setStatus(error.message)));
+refreshPresetPreview.addEventListener("click", () => refreshPresetPreviewHtml().catch((error) => setStatus(error.message)));
+Object.values(presetFields).forEach((element) => {
+  element.addEventListener("input", () => {
+    if (!presetStudio.hidden) refreshPresetPreviewHtml().catch(() => {});
+  });
+});
+uploadHeadImageBtn.addEventListener("click", () => uploadPresetImage("head"));
+uploadTailImageBtn.addEventListener("click", () => uploadPresetImage("tail"));
+presetImageInput.addEventListener("change", async () => {
+  const file = presetImageInput.files?.[0];
+  if (!file) return;
+  const body = new FormData();
+  body.append("image", file);
+  body.append("prefix", presetUploadTarget);
+  try {
+    const response = await fetch("/api/presets/assets", { method: "POST", body });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "预设图片上传失败");
+    if (presetUploadTarget === "head") presetFields.head_url.value = data.url || "";
+    if (presetUploadTarget === "tail") presetFields.tail_url.value = data.url || "";
+    await refreshPresetPreviewHtml();
+  } catch (error) {
+    setStatus(error.message || "预设图片上传失败");
+  } finally {
+    presetImageInput.value = "";
+  }
+});
+presetSelect.addEventListener("change", async () => {
+  if (!runId) return;
+  try {
+    await applyPresetToRun(presetSelect.value);
+  } catch (error) {
+    setStatus(error.message || "切换预设失败");
+  }
+});
 historySelect.addEventListener("change", async () => {
   if (!historySelect.value) return;
   try {

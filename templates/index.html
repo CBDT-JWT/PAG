@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>模板测试</title>
+  <title>公众号论文写作工具</title>
   <link rel="stylesheet" href="/static/app.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.mjs" type="module"></script>
 </head>
@@ -33,9 +33,10 @@
           </div>
           <input id="paperUrl" name="paper_url" type="url" placeholder="https://arxiv.org/abs/..." autocomplete="off">
           <input id="paperPdf" name="paper_pdf" type="file" accept="application/pdf">
-          <div class="file-row">
-            <label>头部图片 <input name="head_image" type="file" accept="image/*"></label>
-            <label>尾部图片 <input name="tail_image" type="file" accept="image/*"></label>
+          <div class="preset-row">
+            <select id="presetSelect" name="preset_id" aria-label="选择主题预设"></select>
+            <button id="newPresetBtn" type="button">新建预设</button>
+            <button id="editPresetBtn" type="button">修改预设</button>
           </div>
           <textarea name="focus_authors" rows="2" placeholder="重点关注作者，可用逗号分隔"></textarea>
           <div class="progress-panel" aria-live="polite">
@@ -132,6 +133,7 @@
     </div>
   </div>
   <input id="localImageInput" type="file" accept="image/*" hidden>
+  <input id="presetImageInput" type="file" accept="image/*" hidden>
 
   <div id="dialogModal" class="dialog-modal" hidden>
     <div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
@@ -140,6 +142,80 @@
       <div class="dialog-actions">
         <button id="dialogCancel" type="button">取消</button>
         <button id="dialogConfirm" class="primary" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="presetStudio" class="studio-modal" hidden>
+    <div class="studio-shell">
+      <div class="studio-toolbar">
+        <strong id="studioTitle">预设编辑器</strong>
+        <div class="studio-actions">
+          <button id="studioCancel" type="button">关闭</button>
+          <button id="studioSave" class="primary" type="button">保存预设</button>
+        </div>
+      </div>
+      <div class="studio-body">
+        <section class="studio-controls">
+          <label>预设名称<input id="presetName" type="text" placeholder="例如：学术蓝卡片"></label>
+          <label>提示词风格<textarea id="presetPromptHint" rows="4" placeholder="告诉模型这套风格更像什么样的公众号文章"></textarea></label>
+          <div class="studio-grid">
+            <label>主题主色<input id="presetPrimary" type="color"></label>
+            <label>强调/卡片色<input id="presetSecondary" type="color"></label>
+            <label>正文颜色<input id="presetText" type="color"></label>
+            <label>背景色<input id="presetSurface" type="color"></label>
+            <label>标题底色<input id="presetHeadingBg" type="color"></label>
+            <label>标题文字色<input id="presetHeadingText" type="color"></label>
+            <label>粗体颜色<input id="presetBold" type="color"></label>
+            <label>左侧竖线色<input id="presetLeftLine" type="color"></label>
+            <label>信息卡片底色<input id="presetPaperInfoBg" type="color"></label>
+          </div>
+          <div class="studio-grid">
+            <label>正文对齐
+              <select id="presetBodyAlign">
+                <option value="justify">两端对齐</option>
+                <option value="left">左对齐</option>
+                <option value="center">居中</option>
+              </select>
+            </label>
+            <label>标题对齐
+              <select id="presetHeadingAlign">
+                <option value="center">居中</option>
+                <option value="left">左对齐</option>
+                <option value="right">右对齐</option>
+              </select>
+            </label>
+            <label>标题样式
+              <select id="presetHeadingStyle">
+                <option value="card">卡片标题</option>
+                <option value="left-line">左侧竖线</option>
+                <option value="plain">纯文字</option>
+              </select>
+            </label>
+            <label>论文信息样式
+              <select id="presetPaperInfoStyle">
+                <option value="card">卡片</option>
+                <option value="list">普通列表</option>
+              </select>
+            </label>
+            <label>正文大小<input id="presetBodyFontSize" type="range" min="12" max="18" step="1"></label>
+            <label>标题大小<input id="presetHeadingFontSize" type="range" min="14" max="22" step="1"></label>
+            <label>行高<input id="presetLineHeight" type="range" min="22" max="34" step="1"></label>
+          </div>
+          <div class="studio-grid studio-images">
+            <label>文首图片 URL<input id="presetHeadUrl" type="text" placeholder="/public/presets/assets/..."></label>
+            <button id="uploadHeadImageBtn" type="button">上传文首图</button>
+            <label>文末图片 URL<input id="presetTailUrl" type="text" placeholder="/public/presets/assets/..."></label>
+            <button id="uploadTailImageBtn" type="button">上传文末图</button>
+          </div>
+        </section>
+        <section class="studio-preview-panel">
+          <div class="studio-preview-toolbar">
+            <span>右侧为预设示例预览</span>
+            <button id="refreshPresetPreview" type="button">刷新预览</button>
+          </div>
+          <article id="presetPreview" class="wechat-preview studio-preview"></article>
+        </section>
       </div>
     </div>
   </div>

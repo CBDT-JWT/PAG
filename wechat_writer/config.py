@@ -6,6 +6,9 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 PUBLIC_DIR = BASE_DIR / "public"
 RUNS_DIR = PUBLIC_DIR / "runs"
+PRESETS_DIR = PUBLIC_DIR / "presets"
+PRESET_ASSETS_DIR = PRESETS_DIR / "assets"
+PRESETS_FILE = PRESETS_DIR / "theme-presets.json"
 ASSETS_DIR = BASE_DIR / "assets"
 STATIC_DIR = BASE_DIR / "static"
 TEMPLATES_DIR = BASE_DIR / "templates"

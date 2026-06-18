@@ -350,7 +350,7 @@ def get_article_markdown(parsed):
     return ""
 
 
-def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, progress=None):
+def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, preset_prompt="", progress=None):
     data = {
         "paper_title": "",
         "project_url": "",
@@ -375,6 +375,7 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
 头图 URL：{head_url}
 尾图 URL：{tail_url}
 重点关注作者：{focus_authors or '无'}
+主题预设提示：{preset_prompt or '无'}
 预搜索结果：{seed_search}
 
 论文文本：
@@ -462,6 +463,7 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, p
                     metadata=metadata,
                     head_url=head_url,
                     tail_url=tail_url,
+                    theme=None,
                 )
             except Exception as exc:
                 print("[generate_article] markdown_to_wechat_html ERROR:", repr(exc), flush=True)
