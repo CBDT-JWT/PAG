@@ -133,6 +133,17 @@
   </div>
   <input id="localImageInput" type="file" accept="image/*" hidden>
 
+  <div id="dialogModal" class="dialog-modal" hidden>
+    <div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <strong id="dialogTitle">提示</strong>
+      <p id="dialogMessage"></p>
+      <div class="dialog-actions">
+        <button id="dialogCancel" type="button">取消</button>
+        <button id="dialogConfirm" class="primary" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/static/app.js"></script>
 </body>
 </html>

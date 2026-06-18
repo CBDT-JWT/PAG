@@ -516,6 +516,49 @@ input[type="url"], textarea {
   gap: 8px;
 }
 
+.dialog-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, .46);
+}
+
+.dialog-modal[hidden] {
+  display: none;
+}
+
+.dialog-card {
+  width: min(460px, 100%);
+  padding: 18px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, .22);
+}
+
+.dialog-card strong {
+  display: block;
+  font-size: 17px;
+  color: var(--text);
+}
+
+.dialog-card p {
+  margin: 10px 0 18px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (max-width: 1180px) {
   .app-shell {
     height: auto;

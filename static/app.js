@@ -32,6 +32,11 @@ const saveShot = document.getElementById("saveShot");
 const generatedTitle = document.getElementById("generatedTitle");
 const generatedQuestion = document.getElementById("generatedQuestion");
 const generatedTitleOptions = document.getElementById("generatedTitleOptions");
+const dialogModal = document.getElementById("dialogModal");
+const dialogTitle = document.getElementById("dialogTitle");
+const dialogMessage = document.getElementById("dialogMessage");
+const dialogCancel = document.getElementById("dialogCancel");
+const dialogConfirm = document.getElementById("dialogConfirm");
 
 // const generateBtn = document.getElementById("generateBtn");
 // const statusLine = document.getElementById("statusLine");
@@ -64,6 +69,8 @@ let selectedArticleText = "";
 let syncTimer = null;
 let syncing = false;
 let syncPending = false;
+let hasSuccessfulGeneration = false;
+let dialogResolver = null;
 const MAX_SCREENSHOT_DATA_URL_LENGTH = 250_000;
 const MAX_SCREENSHOT_SIDE = 2800;
 
@@ -116,7 +123,34 @@ function applyGenerateResult(data) {
   copySource.innerHTML = renderPlaceholders(articleHtml);
   copyBtn.disabled = false;
   iterateBtn.disabled = false;
+  hasSuccessfulGeneration = true;
+  generateBtn.textContent = "重新生成";
   copyStatus.textContent = "可点击红色图片占位符补图，或直接复制";
+}
+
+function openDialog({ title = "提示", message = "", confirmText = "确定", cancelText = "取消", hideCancel = false }) {
+  dialogTitle.textContent = title;
+  dialogMessage.textContent = message;
+  dialogConfirm.textContent = confirmText;
+  dialogCancel.textContent = cancelText;
+  dialogCancel.hidden = hideCancel;
+  dialogModal.hidden = false;
+  return new Promise((resolve) => {
+    dialogResolver = resolve;
+  });
+}
+
+function closeDialog(result) {
+  dialogModal.hidden = true;
+  if (dialogResolver) {
+    const resolve = dialogResolver;
+    dialogResolver = null;
+    resolve(result);
+  }
+}
+
+function countUnreplacedImages() {
+  return copySource.querySelectorAll(".image-placeholder").length;
 }
 
 function renderTitleOptions(titles = [], activeTitle = "") {
@@ -381,6 +415,16 @@ async function renderPage() {
 }
 
 async function copyRichText() {
+  const pendingImages = countUnreplacedImages();
+  if (pendingImages > 0) {
+    await openDialog({
+      title: "还有图片未替换",
+      message: `当前还有 ${pendingImages} 张图片没有替换，补图后再复制会更完整。`,
+      confirmText: "我知道了",
+      hideCancel: true
+    });
+    return;
+  }
   const html = getCopyHtml();
   const text = copySource.innerText;
   try {
@@ -573,6 +617,12 @@ form.addEventListener("change", syncSourceMode);
 syncSourceMode();
 loadHistory().catch(() => {});
 
+dialogCancel.addEventListener("click", () => closeDialog(false));
+dialogConfirm.addEventListener("click", () => closeDialog(true));
+dialogModal.addEventListener("click", (event) => {
+  if (event.target === dialogModal) closeDialog(false);
+});
+
 refreshHistory.addEventListener("click", () => loadHistory().catch((error) => setStatus(error.message)));
 historySelect.addEventListener("change", async () => {
   if (!historySelect.value) return;
@@ -610,7 +660,7 @@ document.querySelectorAll(".editor-tools button").forEach((button) => {
   });
 });
 
-generateBtn.addEventListener("click", async () => {
+async function runGeneration() {
   generateBtn.disabled = true;
   copyBtn.disabled = true;
   iterateBtn.disabled = true;
@@ -635,9 +685,31 @@ generateBtn.addEventListener("click", async () => {
     setProgress(0, "生成失败");
     appendProgress("生成失败", error.message);
     setStatus(error.message);
+    const shouldRetry = await openDialog({
+      title: "生成失败",
+      message: `生成失败，报错内容为：${error.message || "未知错误"}\n疑似模型输出内容有误，点击重新生成。`,
+      confirmText: "重新生成",
+      cancelText: "取消"
+    });
+    if (shouldRetry) {
+      runGeneration();
+    }
   } finally {
     generateBtn.disabled = false;
   }
+}
+
+generateBtn.addEventListener("click", async () => {
+  if (hasSuccessfulGeneration) {
+    const confirmed = await openDialog({
+      title: "是否确定重新生成",
+      message: "重新生成后无法找回上一次生成内容。",
+      confirmText: "重新生成",
+      cancelText: "取消"
+    });
+    if (!confirmed) return;
+  }
+  runGeneration();
 });
 
 copyBtn.addEventListener("click", copyRichText);
