@@ -106,10 +106,12 @@ def register_routes(app):
         return jsonify(run_payload(run_dir))
 
     @app.get("/api/presets")
+    @app.get("/api/runs/presets")
     def api_presets():
         return jsonify({"presets": load_presets(), "template": create_empty_preset()})
 
     @app.post("/api/presets")
+    @app.post("/api/runs/presets")
     def api_save_preset():
         try:
             data = request.get_json(force=True)
@@ -119,6 +121,7 @@ def register_routes(app):
             return jsonify({"error": str(exc)}), 500
 
     @app.post("/api/presets/assets")
+    @app.post("/api/runs/presets/assets")
     def api_preset_asset():
         try:
             upload = request.files.get("image")
@@ -130,6 +133,7 @@ def register_routes(app):
             return jsonify({"error": str(exc)}), 500
 
     @app.post("/api/presets/preview")
+    @app.post("/api/runs/presets/preview")
     def api_preset_preview():
         try:
             theme = normalize_preset(request.get_json(force=True) or {})

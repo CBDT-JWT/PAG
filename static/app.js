@@ -313,7 +313,7 @@ function populatePresetSelect() {
 }
 
 async function loadPresets() {
-  const response = await fetch("/api/presets");
+  const response = await fetch("/api/runs/presets");
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "预设加载失败");
   presets = data.presets || [];
@@ -385,7 +385,7 @@ function collectPresetForm() {
 async function refreshPresetPreviewHtml() {
   currentPresetDraft = collectPresetForm();
   try {
-    const response = await fetch("/api/presets/preview", {
+    const response = await fetch("/api/runs/presets/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(currentPresetDraft)
@@ -412,7 +412,7 @@ async function openPresetStudio(mode) {
 
 async function savePresetFromStudio() {
   const body = collectPresetForm();
-  const response = await fetch("/api/presets", {
+  const response = await fetch("/api/runs/presets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -433,7 +433,7 @@ async function savePresetFromStudio() {
 async function persistCurrentPresetDraft() {
   if (!currentPresetDraft?.id) return null;
   const body = collectPresetForm();
-  const response = await fetch("/api/presets", {
+  const response = await fetch("/api/runs/presets", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -992,7 +992,7 @@ presetImageInput.addEventListener("change", async () => {
   body.append("image", file);
   body.append("prefix", presetUploadTarget);
   try {
-    const response = await fetch("/api/presets/assets", { method: "POST", body });
+    const response = await fetch("/api/runs/presets/assets", { method: "POST", body });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "预设图片上传失败");
     if (presetUploadTarget === "head") presetFields.head_url.value = data.url || "";
