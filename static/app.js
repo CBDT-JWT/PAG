@@ -123,6 +123,18 @@ function fallbackPresetTemplate() {
   };
 }
 
+function newPresetId() {
+  return `preset-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function freshPresetDraft() {
+  const draft = deepClone(presetTemplate || fallbackPresetTemplate());
+  draft.id = newPresetId();
+  draft.name = "新预设";
+  draft.prompt_hint = "";
+  return draft;
+}
+
 const presetFields = {
   name: document.getElementById("presetName"),
   prompt_hint: document.getElementById("presetPromptHint"),
@@ -389,9 +401,8 @@ async function refreshPresetPreviewHtml() {
 }
 
 async function openPresetStudio(mode) {
-  const template = presetTemplate || fallbackPresetTemplate();
   const existing = currentPreset();
-  currentPresetDraft = mode === "new" ? deepClone(template) : deepClone(existing || template);
+  currentPresetDraft = mode === "new" ? freshPresetDraft() : deepClone(existing || freshPresetDraft());
   if (!currentPresetDraft) return;
   studioTitle.textContent = mode === "new" || !existing ? "新建主题预设" : `修改预设：${currentPresetDraft.name}`;
   fillPresetForm(currentPresetDraft);
@@ -412,6 +423,7 @@ async function savePresetFromStudio() {
   await loadPresets();
   presetSelect.value = savedId || presetSelect.value;
   presetStudio.hidden = true;
+  currentPresetDraft = null;
   setStatus(`预设已保存：${data.preset?.name || body.name}`);
   if (runId) {
     await applyPresetToRun(savedId);
@@ -962,6 +974,7 @@ newPresetBtn.addEventListener("click", () => openPresetStudio("new").catch((erro
 editPresetBtn.addEventListener("click", () => openPresetStudio("edit").catch((error) => setStatus(error.message)));
 studioCancel.addEventListener("click", () => {
   presetStudio.hidden = true;
+  currentPresetDraft = null;
 });
 studioSave.addEventListener("click", () => savePresetFromStudio().catch((error) => setStatus(error.message)));
 refreshPresetPreview.addEventListener("click", () => refreshPresetPreviewHtml().catch((error) => setStatus(error.message)));
