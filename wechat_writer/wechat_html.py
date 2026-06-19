@@ -263,9 +263,6 @@ def markdown_to_wechat_html(markdown_text, metadata, head_url="", tail_url="", t
     flush_paragraph()
     if head_url and not saw_head_image:
         blocks.insert(0, image_section(head_url))
-    question_section = reader_question_section(metadata.get("reader_question", ""), theme=theme, formula_renderer=formula_renderer)
-    if question_section:
-        blocks.append(question_section)
     if tail_url and not saw_tail_image:
         blocks.append(image_section(tail_url))
     body_html = (
@@ -316,7 +313,6 @@ def fallback_article(metadata, paper_text, head_url, tail_url, theme=None):
             + "".join(info_items)
             + "</ul></section></section>"
         )
-    question_block = reader_question_section(metadata.get("reader_question", ""), theme=theme)
     return ensure_wrapper(f"""
 <section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:{body["align"]};font-size:{body["font_size"]};line-height:{body["line_height"]};letter-spacing:{LETTER_SPACING};color:{body["text_color"]};background:{surface};">
 {image_section(head_url)}
@@ -328,6 +324,5 @@ def fallback_article(metadata, paper_text, head_url, tail_url, theme=None):
 [[IMAGE:论文核心方法或主要实验结果截图]]
 {info_block}
 [[IMAGE:论文开头部分截图]]
-{question_block}
 {tail}
 </section>""")
