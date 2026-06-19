@@ -4,4 +4,6 @@ __pycache__/
 *.pyc
 output/
 public/runs
+public/presets/theme-presets.local.json
+public/presets/assets/
 example*.html

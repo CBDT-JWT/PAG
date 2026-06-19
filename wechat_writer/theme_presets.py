@@ -5,7 +5,14 @@ from copy import deepcopy
 from pathlib import Path
 
 from .agent import DEFAULT_ARTICLE_STYLE_PROMPT, TITLE_QUESTION_PROMPT
-from .config import ASSETS_DIR, PRESET_ASSETS_DIR, PRESETS_DIR, PRESETS_FILE
+from .config import (
+    ASSETS_DIR,
+    PRESET_ASSETS_DIR,
+    PRESETS_DIR,
+    PRESETS_EXAMPLE_FILE,
+    PRESETS_FILE,
+    PRESETS_LEGACY_FILE,
+)
 from .files import public_url, safe_name
 
 
@@ -97,7 +104,15 @@ def ensure_preset_store():
     PRESET_ASSETS_DIR.mkdir(parents=True, exist_ok=True)
     ensure_default_preset_head()
     if not PRESETS_FILE.exists():
-        PRESETS_FILE.write_text(json.dumps({"presets": [default_theme_preset()]}, ensure_ascii=False, indent=2), encoding="utf-8")
+        if PRESETS_LEGACY_FILE.exists():
+            PRESETS_FILE.write_text(PRESETS_LEGACY_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+        elif PRESETS_EXAMPLE_FILE.exists():
+            PRESETS_FILE.write_text(PRESETS_EXAMPLE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+        else:
+            PRESETS_FILE.write_text(
+                json.dumps({"presets": [default_theme_preset()]}, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
 
 
 def ensure_default_preset_head():
