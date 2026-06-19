@@ -104,9 +104,10 @@ button.primary:hover:not(:disabled) {
 
 .info-pane {
   display: grid;
-  grid-template-rows: auto minmax(160px, 1fr) auto;
+  grid-template-rows: auto auto auto;
   min-height: 0;
   overflow: auto;
+  align-content: start;
 }
 
 .pdf-pane {
@@ -299,7 +300,6 @@ input[type="url"], textarea {
   padding: 14px;
   background: var(--panel);
   border-top: 1px solid var(--line);
-  overflow: auto;
 }
 
 .meta-panel div {
@@ -364,6 +364,7 @@ input[type="url"], textarea {
   display: grid;
   grid-template-rows: auto auto 1fr;
   min-height: 0;
+  overflow: hidden;
 }
 
 .generated-panel {
@@ -447,10 +448,13 @@ input[type="url"], textarea {
   width: min(720px, calc(100% - 36px));
   margin: 18px auto 40px;
   padding: 24px 16px;
-  min-height: calc(100% - 58px);
+  min-height: 0;
+  height: calc(100% - 58px);
+  max-height: calc(100% - 58px);
   overflow: auto;
   background: #fff;
   outline: none;
+  overscroll-behavior: contain;
 }
 
 .wechat-preview:focus {
