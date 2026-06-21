@@ -119,6 +119,12 @@ def paper_info_section(metadata, theme=None):
     secondary = theme_value(theme, "colors", "secondary", "#9d584d")
     paper_info_style = theme_value(theme, "render", "paper_info_style", "card")
     paper_info_bg = theme_value(theme, "colors", "paper_info_bg", "#f7f3eb")
+    primary = theme_value(theme, "colors", "primary", "#2d6cdf")
+    heading_text = theme_value(theme, "colors", "heading_text", primary)
+    surface = theme_value(theme, "colors", "surface", "#ffffff")
+    text_color = theme_value(theme, "colors", "text", "#2a2f36")
+    left_line = theme_value(theme, "colors", "left_line", primary)
+    heading_bg = theme_value(theme, "colors", "heading_bg", "#edf3ff")
 
     def li(label, value, text_align=False):
         align = "text-align: left;" if text_align else ""
@@ -134,22 +140,90 @@ def paper_info_section(metadata, theme=None):
             "</li>"
         )
 
-    items = "\n".join(li(label, value, text_align=text_align) for label, value, text_align in items_data if value)
-    if not items:
+    entries = [(label, value, text_align) for label, value, text_align in items_data if value]
+    items = "\n".join(li(label, value, text_align=text_align) for label, value, text_align in entries)
+    if not entries:
         return ""
-    wrapper_style = (
-        f"font-size:{font_size}px;line-height:{line_height}px;padding:12px 10px;color:{secondary};"
-        f"background:{paper_info_bg};border-radius:12px;box-sizing:border-box;"
-        if paper_info_style == "card"
-        else f"font-size:{font_size}px;line-height:{line_height}px;padding:0;color:{secondary};box-sizing:border-box;"
-    )
+
+    def render_card():
+        return (
+            f'<section style="font-size:{font_size}px;line-height:{line_height}px;padding:12px 10px;color:{secondary};'
+            f'background:{paper_info_bg};border-radius:12px;box-sizing:border-box;">'
+            '<ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
+            f"{items}"
+            "</ul></section>"
+        )
+
+    def render_list():
+        return (
+            f'<section style="font-size:{font_size}px;line-height:{line_height}px;padding:0;color:{secondary};box-sizing:border-box;">'
+            '<ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
+            f"{items}"
+            "</ul></section>"
+        )
+
+    def render_outline():
+        blocks = []
+        for label, value, text_align in entries:
+            align = "text-align:left;" if text_align else ""
+            blocks.append(
+                f'<section style="padding:10px 12px;border:1.5px solid {primary};border-radius:10px;background:{surface};box-sizing:border-box;">'
+                f'<p style="margin:0 0 4px 0;font-size:12px;line-height:18px;letter-spacing:.8px;color:{primary};">{escape_html_text(label)}</p>'
+                f'<p style="margin:0;{align}font-size:{font_size}px;line-height:{line_height}px;letter-spacing:{LETTER_SPACING};color:{text_color};">{escape_html_text(value)}</p>'
+                "</section>"
+            )
+        return (
+            '<section style="display:grid;gap:10px;box-sizing:border-box;">'
+            + "".join(blocks)
+            + "</section>"
+        )
+
+    def render_timeline():
+        blocks = []
+        for label, value, text_align in entries:
+            align = "text-align:left;" if text_align else ""
+            blocks.append(
+                '<section style="position:relative;padding-left:18px;box-sizing:border-box;">'
+                f'<span style="position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:999px;background:{left_line};display:block;"></span>'
+                f'<p style="margin:0 0 3px 0;font-size:12px;line-height:18px;letter-spacing:.5px;color:{secondary};">{escape_html_text(label)}</p>'
+                f'<p style="margin:0;{align}font-size:{font_size}px;line-height:{line_height}px;letter-spacing:{LETTER_SPACING};color:{text_color};">{escape_html_text(value)}</p>'
+                "</section>"
+            )
+        return (
+            f'<section style="padding:2px 0 2px 12px;border-left:3px solid {left_line};display:grid;gap:12px;box-sizing:border-box;">'
+            + "".join(blocks)
+            + "</section>"
+        )
+
+    def render_banner():
+        blocks = []
+        for label, value, text_align in entries:
+            align = "text-align:left;" if text_align else ""
+            blocks.append(
+                f'<section style="padding:10px 12px;border-radius:10px;background:{surface};box-sizing:border-box;">'
+                f'<p style="margin:0 0 4px 0;font-size:12px;line-height:18px;letter-spacing:.7px;color:{heading_text};"><strong>{escape_html_text(label)}</strong></p>'
+                f'<p style="margin:0;{align}font-size:{font_size}px;line-height:{line_height}px;letter-spacing:{LETTER_SPACING};color:{text_color};">{escape_html_text(value)}</p>'
+                "</section>"
+            )
+        return (
+            f'<section style="padding:12px;border-radius:16px;background:linear-gradient(135deg, {heading_bg} 0%, {paper_info_bg} 100%);box-sizing:border-box;">'
+            f'<p style="margin:0 0 10px 0;font-size:12px;line-height:18px;letter-spacing:1px;color:{heading_text};"><strong>论文信息</strong></p>'
+            '<section style="display:grid;gap:8px;box-sizing:border-box;">'
+            + "".join(blocks)
+            + "</section></section>"
+        )
+
+    style_map = {
+        "card": render_card,
+        "list": render_list,
+        "outline": render_outline,
+        "timeline": render_timeline,
+        "banner": render_banner,
+    }
+    renderer = style_map.get(paper_info_style, render_card)
     return (
         '<section data-markdown-token="[[PAPER_INFO]]" contenteditable="false" style="margin:20px 0 0;box-sizing:border-box;">'
-        f'<section style="{wrapper_style}">'
-        '<ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
-        f"{items}"
-        "</ul>"
-        "</section>"
+        f"{renderer()}"
         "</section>"
     )
 
@@ -290,29 +364,8 @@ def fallback_article(metadata, paper_text, head_url, tail_url, theme=None):
     first = html.escape((paper_text.strip().splitlines() or [title])[0][:220])
     tail = image_section(tail_url) if tail_url else ""
     body = body_style(theme)
-    secondary = theme_value(theme, "colors", "secondary", "#9d584d")
-    paper_info_bg = theme_value(theme, "colors", "paper_info_bg", "#f7f3eb")
     surface = theme_value(theme, "colors", "surface", "#ffffff")
-    info_items = []
-    if metadata.get("paper_title"):
-        info_items.append(
-            f'<li><p style="margin:0 {BODY_HORIZONTAL_PADDING};padding:0;box-sizing:border-box;font-size:{body["font_size"]};line-height:{body["line_height"]};letter-spacing:{LETTER_SPACING};"><strong>论文标题</strong><br>{html.escape(metadata.get("paper_title") or "")}</p></li>'
-        )
-    if metadata.get("project_url"):
-        info_items.append(
-            f'<li><p style="margin:0 {BODY_HORIZONTAL_PADDING};padding:0;box-sizing:border-box;font-size:{body["font_size"]};line-height:{body["line_height"]};letter-spacing:{LETTER_SPACING};"><strong>项目地址</strong><br>{html.escape(metadata.get("project_url") or "")}</p></li>'
-        )
-    if metadata.get("paper_url"):
-        info_items.append(
-            f'<li><p style="margin:0 {BODY_HORIZONTAL_PADDING};padding:0;box-sizing:border-box;font-size:{body["font_size"]};line-height:{body["line_height"]};letter-spacing:{LETTER_SPACING};"><strong>论文地址</strong><br>{html.escape(metadata.get("paper_url") or "")}</p></li>'
-        )
-    info_block = ""
-    if info_items:
-        info_block = (
-            f'<section style="margin:20px 0 0;box-sizing:border-box;"><section style="font-size:{body["font_size"]};line-height:{body["line_height"]};padding:12px 10px;color:{secondary};background:{paper_info_bg};border-radius:12px;box-sizing:border-box;"><ul style="list-style-type:disc;box-sizing:border-box;padding-left:20px;list-style-position:outside;">'
-            + "".join(info_items)
-            + "</ul></section></section>"
-        )
+    info_block = paper_info_section(metadata, theme=theme)
     return ensure_wrapper(f"""
 <section style="box-sizing:border-box;font-style:normal;font-weight:400;text-align:{body["align"]};font-size:{body["font_size"]};line-height:{body["line_height"]};letter-spacing:{LETTER_SPACING};color:{body["text_color"]};background:{surface};">
 {image_section(head_url)}

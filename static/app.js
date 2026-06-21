@@ -251,6 +251,13 @@ function normalizePublicUrls(value) {
   return (value || "").replace(/https?:\/\/[^"'()\s]+\/public\//g, "/public/");
 }
 
+function stripGeneratedQuestionBlocks(value) {
+  return (value || "").replace(
+    /<section[^>]*data-generated-question="true"[\s\S]*?<\/section>/gi,
+    ""
+  );
+}
+
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -298,6 +305,11 @@ function buildLocalPresetPreview(preset) {
   })();
 
   const paperInfoBlock = (() => {
+    const entries = [
+      { label: "论文标题", value: "PreviewMA: Theme Presets for WeChat Articles", align: "left" },
+      { label: "项目地址", value: "https://example.com/project", align: "left" },
+      { label: "论文地址", value: "https://arxiv.org/abs/2501.01234", align: "left" }
+    ];
     const list = `
       <ul style="margin:0;padding-left:20px;list-style:disc;">
         <li style="margin-bottom:8px;"><strong>论文标题</strong><br>PreviewMA: Theme Presets for WeChat Articles</li>
@@ -307,6 +319,34 @@ function buildLocalPresetPreview(preset) {
     `;
     if (paperInfoStyle === "list") {
       return `<section style="margin:0 10px 12px 10px;color:${secondary};font-size:${bodyFontSize}px;line-height:${lineHeight}px;">${list}</section>`;
+    }
+    if (paperInfoStyle === "outline") {
+      const cards = entries.map((entry) => `
+        <section style="padding:10px 12px;border:1.5px solid ${primary};border-radius:10px;background:${surface};">
+          <p style="margin:0 0 4px 0;font-size:12px;line-height:18px;letter-spacing:.8px;color:${primary};">${entry.label}</p>
+          <p style="margin:0;font-size:${bodyFontSize}px;line-height:${lineHeight}px;color:${textColor};text-align:${entry.align};">${entry.value}</p>
+        </section>
+      `).join("");
+      return `<section style="margin:0 10px 12px 10px;display:grid;gap:10px;">${cards}</section>`;
+    }
+    if (paperInfoStyle === "timeline") {
+      const items = entries.map((entry) => `
+        <section style="position:relative;padding-left:18px;">
+          <span style="position:absolute;left:0;top:7px;width:8px;height:8px;border-radius:999px;background:${leftLine};display:block;"></span>
+          <p style="margin:0 0 3px 0;font-size:12px;line-height:18px;letter-spacing:.5px;color:${secondary};">${entry.label}</p>
+          <p style="margin:0;font-size:${bodyFontSize}px;line-height:${lineHeight}px;color:${textColor};text-align:${entry.align};">${entry.value}</p>
+        </section>
+      `).join("");
+      return `<section style="margin:0 10px 12px 10px;padding:2px 0 2px 12px;border-left:3px solid ${leftLine};display:grid;gap:12px;">${items}</section>`;
+    }
+    if (paperInfoStyle === "banner") {
+      const items = entries.map((entry) => `
+        <section style="padding:10px 12px;border-radius:10px;background:${surface};">
+          <p style="margin:0 0 4px 0;font-size:12px;line-height:18px;letter-spacing:.7px;color:${headingText};"><strong>${entry.label}</strong></p>
+          <p style="margin:0;font-size:${bodyFontSize}px;line-height:${lineHeight}px;color:${textColor};text-align:${entry.align};">${entry.value}</p>
+        </section>
+      `).join("");
+      return `<section style="margin:0 10px 12px 10px;padding:12px;border-radius:16px;background:linear-gradient(135deg, ${headingBg} 0%, ${paperInfoBg} 100%);"><p style="margin:0 0 10px 0;font-size:12px;line-height:18px;letter-spacing:1px;color:${headingText};"><strong>论文信息</strong></p><section style="display:grid;gap:8px;">${items}</section></section>`;
     }
     return `<section style="margin:0 10px 12px 10px;padding:12px 10px;border-radius:12px;background:${paperInfoBg};color:${secondary};font-size:${bodyFontSize}px;line-height:${lineHeight}px;">${list}</section>`;
   })();
@@ -339,7 +379,7 @@ function applyGenerateResult(data) {
   console.log("metadata =", data.metadata);
   console.log("ai_error =", data.metadata?.ai_error);
   runId = data.run_id;
-  articleHtml = normalizePublicUrls(data.article_html);
+  articleHtml = stripGeneratedQuestionBlocks(normalizePublicUrls(data.article_html));
   articleMarkdown = normalizePublicUrls(data.article_markdown);
   setMeta(data.metadata || {});
   if (data.metadata?.preset_id) presetSelect.value = data.metadata.preset_id;
@@ -519,7 +559,7 @@ async function applyPresetToRun(presetId) {
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "切换预设失败");
-  articleHtml = data.article_html || articleHtml;
+  articleHtml = stripGeneratedQuestionBlocks(data.article_html || articleHtml);
   articleMarkdown = data.article_markdown || articleMarkdown;
   if (data.metadata) setMeta(data.metadata);
   copySource.innerHTML = renderPlaceholders(articleHtml);
@@ -705,7 +745,7 @@ function restoreArticleHtml() {
   html = html.replace(/<button[^>]*class="[^"]*image-placeholder[^"]*"[^>]*data-placeholder="([^"]+)"[^>]*>.*?<\/button>/gims, (_, token) => {
     return token.replace(/&quot;/g, '"').replace(/&amp;/g, "&");
   });
-  return html;
+  return stripGeneratedQuestionBlocks(html);
 }
 
 function inlineMarkdown(node) {
@@ -1188,7 +1228,7 @@ iterateBtn.addEventListener("click", async () => {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "迭代修改失败");
-    articleHtml = data.article_html || "";
+    articleHtml = stripGeneratedQuestionBlocks(data.article_html || "");
     articleMarkdown = data.article_markdown || "";
     if (data.metadata) setMeta(data.metadata);
     copySource.innerHTML = renderPlaceholders(articleHtml);
@@ -1279,7 +1319,7 @@ localImageInput.addEventListener("change", async () => {
     const response = await fetch(`/api/runs/${runId}/images`, { method: "POST", body });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "图片上传失败");
-    articleHtml = data.article_html || "";
+      articleHtml = stripGeneratedQuestionBlocks(data.article_html || "");
     articleMarkdown = data.article_markdown || articleMarkdown;
     copySource.innerHTML = renderPlaceholders(articleHtml);
     copyStatus.textContent = "图片已上传并替换";
@@ -1331,7 +1371,7 @@ saveShot.addEventListener("click", async () => {
     });
     const data = await response.json();
     if (response.ok) {
-      articleHtml = data.article_html;
+      articleHtml = stripGeneratedQuestionBlocks(data.article_html);
       articleMarkdown = data.article_markdown || articleMarkdown;
       copySource.innerHTML = renderPlaceholders(articleHtml);
       shotModal.hidden = true;

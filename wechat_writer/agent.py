@@ -93,9 +93,12 @@ JSON 字段必须为：
 """
 
 
-def build_system_prompt(article_style_prompt=""):
-    style_prompt = (article_style_prompt or "").strip() or DEFAULT_ARTICLE_STYLE_PROMPT.strip()
-    return SYSTEM_PROMPT_PREFIX.strip() + "\n\n" + style_prompt
+def build_system_prompt(article_style_prompt=None):
+    style_prompt = DEFAULT_ARTICLE_STYLE_PROMPT.strip() if article_style_prompt is None else (article_style_prompt or "").strip()
+    prompt = SYSTEM_PROMPT_PREFIX.strip()
+    if style_prompt:
+        prompt += "\n\n" + style_prompt
+    return prompt
 
 TOOLS = [
     {"type": "function", "function": {"name": "web_search", "description": "Search web pages for paper metadata, project pages, GitHub repositories, and related works.", "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}},
@@ -488,12 +491,15 @@ def generate_article(paper_text, paper_url, focus_authors, head_url, tail_url, a
         return data
 
 
-def generate_title_and_question(article_markdown, paper_title="", prompt_override="", progress=None):
+def generate_title_and_question(article_markdown, paper_title="", prompt_override=None, progress=None):
     if not (article_markdown or "").strip():
         return {"article_titles": [], "article_title": "", "reader_question": ""}
 
     messages = [
-        {"role": "system", "content": (prompt_override or "").strip() or TITLE_QUESTION_PROMPT},
+        {
+            "role": "system",
+            "content": TITLE_QUESTION_PROMPT if prompt_override is None else (prompt_override or "").strip(),
+        },
         {
             "role": "user",
             "content": f"""论文标题：{paper_title or "无"}

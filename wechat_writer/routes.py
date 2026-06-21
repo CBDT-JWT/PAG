@@ -19,6 +19,10 @@ from .theme_presets import create_empty_preset, get_preset, load_presets, normal
 from .wechat_html import image_section, markdown_to_wechat_html
 
 MAX_SCREENSHOT_BYTES = 250 * 1024
+GENERATED_QUESTION_BLOCK_RE = re.compile(
+    r'<section[^>]*data-generated-question="true"[\s\S]*?</section>',
+    flags=re.I,
+)
 
 
 def read_json_file(path, default=None):
@@ -37,7 +41,12 @@ def image_markdown_from_placeholder(placeholder, image_url):
     return f"![{alt}]({image_url})"
 
 
+def strip_generated_question_block(article_html):
+    return GENERATED_QUESTION_BLOCK_RE.sub("", article_html or "")
+
+
 def replace_article_image(article_html, article_markdown, image_url, placeholder="", target_url=""):
+    article_html = strip_generated_question_block(article_html)
     if placeholder:
         article_html = article_html.replace(placeholder, image_section(image_url), 1)
         article_markdown = article_markdown.replace(
@@ -67,7 +76,7 @@ def run_payload(run_dir):
         "run_id": run_dir.name,
         "created_at": run_created_at(run_dir),
         "metadata": metadata,
-        "article_html": article_path.read_text(encoding="utf-8") if article_path.exists() else "",
+        "article_html": strip_generated_question_block(article_path.read_text(encoding="utf-8")) if article_path.exists() else "",
         "article_markdown": markdown_path.read_text(encoding="utf-8") if markdown_path.exists() else "",
         "pdf_url": public_url(pdf_path) if pdf_path.exists() else "",
         "run_public_url": public_url(run_dir),
@@ -296,7 +305,7 @@ def register_routes(app):
                 return jsonify({"error": "项目目录不存在"}), 404
             article_html = data.get("article_html", "")
             article_markdown = data.get("article_markdown", "")
-            (run_dir / "article.html").write_text(article_html, encoding="utf-8")
+            (run_dir / "article.html").write_text(strip_generated_question_block(article_html), encoding="utf-8")
             (run_dir / "article.md").write_text(article_markdown, encoding="utf-8")
             return jsonify({"ok": True})
         except Exception as exc:

@@ -143,13 +143,18 @@ def save_presets(presets):
 
 
 def normalize_preset(preset):
+    preset = preset or {}
     merged = deepcopy(default_theme_preset())
-    merged.update({k: v for k, v in (preset or {}).items() if k not in {"colors", "images", "render"}})
+    merged.update({k: v for k, v in preset.items() if k not in {"colors", "images", "render"}})
     for section in ("colors", "images", "render"):
-        merged[section].update((preset or {}).get(section) or {})
-    if not merged.get("article_style_prompt"):
+        merged[section].update(preset.get(section) or {})
+    if "article_style_prompt" in preset:
+        merged["article_style_prompt"] = (preset.get("article_style_prompt") or "").strip()
+    elif not merged.get("article_style_prompt"):
         merged["article_style_prompt"] = DEFAULT_ARTICLE_STYLE_PROMPT.strip()
-    if not merged.get("title_question_prompt"):
+    if "title_question_prompt" in preset:
+        merged["title_question_prompt"] = (preset.get("title_question_prompt") or "").strip()
+    elif not merged.get("title_question_prompt"):
         merged["title_question_prompt"] = TITLE_QUESTION_PROMPT.strip()
     if not merged.get("id"):
         merged["id"] = "preset-" + uuid.uuid4().hex[:8]
